@@ -1,0 +1,29 @@
+{
+  "appId": "com.baji.crm",
+  "files": ["dist-electron", "dist-react"],
+  "icon": "./desktopIcon.png",
+  "extraResources": [
+    "dist-electron/preload.cjs",
+    {
+      "from": "dist-electron/config",
+      "to": "dist-electron/config",
+      "filter": ["**/*"]
+    },
+    {
+      "from": "dist-electron/sql",
+      "to": "dist-electron/sql",
+      "filter": ["**/*"]
+    }
+  ],
+  "mac": {
+    "target": "dmg"
+  },
+  "linux": {
+    "target": "AppImage",
+    "category": "Utility"
+  },
+  "win": {
+    "target": ["portable", "msi"],
+    "icon": "./desktopIcon.png"
+  }
+}
