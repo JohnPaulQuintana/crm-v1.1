@@ -1,7 +1,21 @@
 import { signOut } from "firebase/auth";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { auth } from "../firebase";
 import LoaderModal from "./Loader";
+import VpnPopup from "./VpnPopup";
+import CredPopup from "./CredPopup";
+import { CheckCircle } from "lucide-react";
+
+interface CrendentialInfo {
+  visible: boolean;
+  username: string;
+  password: string;
+}
+
+interface VpnInfo {
+  title: string;
+  text: string;
+}
 
 interface DashboardProps {
   user: any;
@@ -29,12 +43,60 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
   const [sqlFiles, setSqlFiles] = useState<SqlFile[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showVpn, setShowVpn] = useState(false);
+  const [showVpnInfo, setShowVpnInfo] = useState<VpnInfo>({
+    title: "",
+    text: "",
+  });
+  const [credential, setCredential] = useState<CrendentialInfo>({
+    visible: false,
+    username: "",
+    password: "",
+  });
 
   const tabNames: Record<string, string> = {
     dashboard: "Dashboard",
     profile: "Profile",
     accounts: "Accounts",
     sql: "SQL Lab",
+  };
+
+  const [activeTabRight, setActiveTabRight] = useState("sql"); // "sql" or "result"
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [isRequesting, setIsRequesting] = useState(false);
+  const [tableData, setTableData] = useState([]);
+
+  const startTimer = () => {
+    // clear any old timer before starting new one
+    if (intervalRef.current) clearInterval(intervalRef.current);
+
+    const start = Date.now();
+    intervalRef.current = setInterval(() => {
+      setElapsedMs(Date.now() - start);
+    }, 50); // update every 50ms
+  };
+
+  const stopTimer = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  };
+
+  const resetTimer = () => {
+    stopTimer();
+    setElapsedMs(0);
+  };
+
+  const formatTime = (ms: number) => {
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const remSeconds = seconds % 60;
+    const milliseconds = ms % 1000;
+    return `${minutes}:${remSeconds < 10 ? "0" : ""}${remSeconds}.${Math.floor(
+      milliseconds / 100
+    )}`;
   };
 
   // Load brands on mount
@@ -83,6 +145,19 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
     }
   };
 
+  // Helper: detect label from value
+  const detectLabel = (val: string) => {
+    const datetimeRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+    if (datetimeRegex.test(val)) {
+      if (val.includes("00:00:00")) return "Start Date";
+      if (val.includes("23:59:59")) return "End Date";
+      return "Date";
+    }
+    const currencyRegex = /^[A-Z]{3}$/; // e.g. USD, BDT, EUR
+    if (currencyRegex.test(val)) return "Currency";
+    return val; // fallback
+  };
+
   const handlePlaceholderChange = (
     fileIdx: number,
     segIdx: number,
@@ -106,10 +181,15 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
     setSqlFiles(newFiles);
   };
 
-  const handleSave = async () => {
+  const handleSaveAndExecute = async () => {
     if (!selectedBrand || !selectedFile || sqlFiles.length === 0) return;
 
     setStatus("Saving...");
+    resetTimer(); // reset before starting
+    setElapsedMs(0);
+    setIsRequesting(true); // show loader and start timer
+    startTimer(); // start tracking time
+
     const sqlToSave = sqlFiles[0].content;
 
     const res = await window.electron?.saveFileContent(
@@ -118,11 +198,43 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
       sqlToSave
     );
 
-    if (res?.success) {
-      setStatus("✅ Saved successfully!");
-    } else {
-      setStatus("❌ Failed to save file: " + res?.error);
-    }
+    setActiveTabRight("result");
+
+    // for debugging only remove the seTImeout in prodcution
+    setTimeout(() => {
+      stopTimer(); // stop timer after request completes
+      setIsRequesting(false); // hide loader
+      console.log(res);
+      if (res?.success) {
+        setShowVpn(false);
+        setStatus("✅ Saved successfully!");
+        setTableData(res?.data || []); // store the table data in state
+      } else {
+        if (res?.type === "vpn_error") {
+          setShowVpnInfo({
+            title: "VPN Required",
+            text: "To access this service, please connect to a VPN and try again.",
+          });
+        } else if (res?.type === "auth_error") {
+          setShowVpnInfo({
+            title: "Credential Error",
+            text: "Your username or password is incorrect. Please check and try again.",
+          });
+        } else if (res?.type === "invalid_credentials") {
+          setShowVpnInfo({
+            title: "Credential Error",
+            text: "Your username or password is incorrect. Please check and try again.",
+          });
+        } else {
+          setShowVpnInfo({
+            title: "Unexpected Error",
+            text: res?.error || "Something went wrong. Please try again later.",
+          });
+        }
+        setShowVpn(true);
+        setStatus("❌ Failed to save file: " + res?.error);
+      }
+    }, 10000);
   };
 
   const wait = (ms: number) =>
@@ -141,8 +253,42 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
     }
   };
 
+  // handle credentials
+  const handleCredentials = async () => {
+    // alert("credentials");
+    const credRes = await window.electron?.getCredentials();
+    console.log(credRes);
+    // if (!credRes?.success) {
+    setCredential({
+      visible: true,
+      username: credRes?.credentials?.username || "",
+      password: credRes?.credentials?.password || "",
+    });
+    // }
+  };
+
+  // Save handler
+  const handleSaveCreds = async (username: string, password: string) => {
+    console.log(username, password);
+    // call backend to save
+    const saveRes = await window.electron?.saveCredentials({
+      username,
+      password,
+    });
+
+    if (saveRes?.success) {
+      setCredential({
+        visible: false,
+        username,
+        password,
+      });
+    } else {
+      alert("Can't Save your credentials...");
+    }
+  };
+
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-gray-100 overflow-hidden">
       {/* Sidebar */}
       <aside className="w-64 bg-white shadow-lg flex flex-col">
         <div className="p-6 text-xl font-bold border-b">CRM</div>
@@ -189,7 +335,7 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
           </div>
         </header>
 
-        <main className="flex-1 p-2 overflow-auto">
+        <main className="flex-1 p-2 flex flex-col">
           {activeTab === "dashboard" && (
             <div>
               <h2 className="text-lg font-bold mb-4">Dashboard Overview</h2>
@@ -258,7 +404,7 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
                   ).map((seg, idx) => (
                     <div key={idx} className="flex flex-col">
                       <label className="text-sm font-medium text-gray-600">
-                        {seg.value}
+                        {detectLabel(seg.value || "")}
                       </label>
                       <input
                         type="text"
@@ -279,10 +425,16 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
 
                 {/* Save Button */}
                 <button
-                  onClick={handleSave}
-                  className="mt-2 w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                  onClick={handleSaveAndExecute}
+                  disabled={isRequesting} // disable when request is in progress
+                  className={`mt-2 w-full px-4 py-2 rounded transition-colors 
+                  ${
+                    isRequesting
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-green-600 hover:bg-green-700 text-white"
+                  }`}
                 >
-                  Execute
+                  {isRequesting ? "Processing..." : "Execute"}
                 </button>
 
                 {status && (
@@ -290,31 +442,209 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
                 )}
               </div>
 
-              {/* Right SQL Preview */}
-              <div className="col-span-2 flex flex-col bg-white rounded-lg shadow-md p-4 overflow-auto font-mono text-sm">
-                <h2 className="text-lg font-semibold text-gray-700 mb-2">
-                  SQL Preview
-                </h2>
-                {sqlFiles.length > 0 ? (
-                  <div className="flex-1 w-full h-full border border-gray-300 rounded p-3 overflow-auto bg-gray-50 whitespace-pre-wrap">
-                    {sqlFiles[0].parsedSegments.map((seg, idx) =>
-                      seg.editable ? (
-                        <span
-                          key={idx}
-                          className="bg-green-100 text-green-800 px-1 rounded"
-                        >
-                          {seg.value}
-                        </span>
-                      ) : (
-                        <span key={idx}>{seg.text}</span>
-                      )
-                    )}
+              {/* Right Panel */}
+              <div className="col-span-2 flex flex-col bg-white rounded-lg shadow-md p-4 font-mono text-sm">
+                {/* Tab Header (fixed) */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setActiveTabRight("sql")}
+                      className={`px-3 py-1 font-semibold rounded transition ${
+                        activeTabRight === "sql"
+                          ? "bg-gray-200 text-gray-900"
+                          : "text-gray-700 hover:bg-gray-100"
+                      }`}
+                    >
+                      SQL Preview
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTabRight("result")}
+                      className={`px-3 py-1 font-semibold rounded transition ${
+                        activeTabRight === "result"
+                          ? "bg-gray-200 text-gray-900"
+                          : "text-gray-700 hover:bg-gray-100"
+                      }`}
+                    >
+                      Result
+                    </button>
                   </div>
-                ) : (
-                  <p className="text-gray-500 mt-2">
-                    Select a file to view SQL content.
-                  </p>
-                )}
+
+                  <div>
+                    <button
+                      onClick={handleCredentials}
+                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+                    >
+                      Credentials
+                    </button>
+                  </div>
+                </div>
+
+                {/* Scrollable Tab Content */}
+                <div className="flex-1 max-h-[80vh] overflow-y-auto">
+                  {activeTabRight === "sql" && (
+                    <div className="w-full border border-gray-300 rounded p-3 bg-gray-50 whitespace-pre-wrap">
+                      {sqlFiles.length > 0 ? (
+                        sqlFiles[0].parsedSegments.map((seg, idx) =>
+                          seg.editable ? (
+                            <span
+                              key={idx}
+                              className="bg-green-100 text-green-800 px-1 rounded"
+                            >
+                              {seg.value}
+                            </span>
+                          ) : (
+                            <span key={idx}>{seg.text}</span>
+                          )
+                        )
+                      ) : (
+                        <p className="text-gray-500 mt-2">
+                          Select a file to view SQL content.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {activeTabRight === "result" && (
+                    <div className="flex flex-col gap-2">
+                      {/* Status Bar */}
+                      <div className="w-full border border-gray-300 rounded p-3 bg-gray-50 flex items-center gap-2">
+                        {isRequesting ? (
+                          <div className={`loader-scrapper`}></div>
+                        ) : (
+                          <CheckCircle className="w-6 h-6 text-green-600" />
+                        )}
+                        <h1>
+                          Sending request{" "}
+                          <span className="text-green-600">
+                            {formatTime(elapsedMs)}
+                          </span>
+                        </h1>
+                      </div>
+
+                      {/* Table + Actions */}
+                      <div className="w-full border border-gray-300 rounded p-3 bg-gray-50 overflow-auto">
+                        {tableData.length > 0 ? (
+                          <>
+                            {/* Action buttons */}
+                            <div className="flex justify-end gap-2 mb-3">
+                              {/* <button
+                                onClick={() => {
+                                  const text = tableData
+                                    .map(
+                                      (row) => Object.values(row).join("\t") // tab-separated
+                                    )
+                                    .join("\n");
+                                  navigator.clipboard.writeText(text);
+                                }}
+                                className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition"
+                              >
+                                Copy
+                              </button> */}
+
+                              <button
+                                onClick={() => {
+                                  const today = new Date()
+                                    .toISOString()
+                                    .split("T")[0]; // e.g. 2025-08-22
+                                  const fileName = `CRM-Report_${today}.csv`;
+
+                                  const headers = Object.keys(
+                                    tableData[0]
+                                  ).join(",");
+                                  const rows = tableData
+                                    .map((row) =>
+                                      Object.values(row)
+                                        .map((val) => `"${val}"`) // wrap in quotes
+                                        .join(",")
+                                    )
+                                    .join("\n");
+                                  const csv = `${headers}\n${rows}`;
+                                  const blob = new Blob([csv], {
+                                    type: "text/csv;charset=utf-8;",
+                                  });
+                                  const url = URL.createObjectURL(blob);
+                                  const link = document.createElement("a");
+                                  link.href = url;
+                                  link.setAttribute("download", fileName);
+                                  document.body.appendChild(link);
+                                  link.click();
+                                  document.body.removeChild(link);
+                                }}
+                                className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition"
+                              >
+                                Export CSV
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  const today = new Date()
+                                    .toISOString()
+                                    .split("T")[0]; // e.g. 2025-08-22
+                                  const fileName = `CRM-Report_${today}.xlsx`;
+
+                                  import("xlsx").then((XLSX) => {
+                                    const worksheet =
+                                      XLSX.utils.json_to_sheet(tableData);
+                                    const workbook = XLSX.utils.book_new();
+                                    XLSX.utils.book_append_sheet(
+                                      workbook,
+                                      worksheet,
+                                      "Data"
+                                    );
+                                    XLSX.writeFile(workbook, fileName);
+                                  });
+                                }}
+                                className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition"
+                              >
+                                Export Excel
+                              </button>
+                            </div>
+
+                            {/* Table */}
+                            <table className="w-full border-collapse text-sm">
+                              <thead>
+                                <tr className="bg-green-100 text-green-900">
+                                  {Object.keys(tableData[0]).map((key) => (
+                                    <th
+                                      key={key}
+                                      className="px-4 py-2 text-left font-semibold uppercase tracking-wide"
+                                    >
+                                      {key}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {tableData.map((row, idx) => (
+                                  <tr
+                                    key={idx}
+                                    className={`${
+                                      idx % 2 === 0
+                                        ? "bg-green-50"
+                                        : "bg-green-25"
+                                    } hover:bg-green-200 transition-colors`}
+                                  >
+                                    {Object.keys(row).map((key) => (
+                                      <td
+                                        key={key}
+                                        className="border-t px-4 py-2 text-green-900"
+                                      >
+                                        {row[key]}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </>
+                        ) : (
+                          <p className="text-gray-500">No data to display</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -350,6 +680,13 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
               size={6}
             />
           )}
+
+          <VpnPopup visible={showVpn} info={showVpnInfo} setShow={setShowVpn} />
+          <CredPopup
+            creds={credential}
+            onSave={handleSaveCreds}
+            onClose={() => setCredential({ ...credential, visible: false })}
+          />
         </main>
       </div>
     </div>

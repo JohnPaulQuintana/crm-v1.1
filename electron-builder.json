@@ -13,6 +13,11 @@
       "from": "dist-electron/sql",
       "to": "dist-electron/sql",
       "filter": ["**/*"]
+    },
+    {
+      "from": "dist-electron/session",
+      "to": "dist-electron/session",
+      "filter": ["**/*"]
     }
   ],
   "mac": {

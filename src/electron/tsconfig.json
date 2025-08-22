@@ -12,6 +12,6 @@
     "skipLibCheck": true,
     "resolveJsonModule": true
   },
-  "include": ["./**/*.cts","./**/*.ts", "./config/**/*.json","./sql/**/*.sql"]
+  "include": ["./**/*.cts","./**/*.ts", "./config/**/*.json","./sql/**/*.sql","./session/**/*.json"]
   // "include": ["**/*.ts", "config/**/*.json"]
 }

@@ -3,8 +3,8 @@ WITH gvars AS ( -- ৫০% স্পোর্টস বেট ইন্স্য
     '৫০% স্পোর্টস বেট ইন্স্যুরেন্স' AS bonus_title
     ,'exc00002' AS bonus_code
     ,200 AS min_init_deposit
-    ,TIMESTAMP '2025-08-11 00:00:00' AS start_date --localtime
-    ,TIMESTAMP '2025-08-17 23:59:59' AS end_date  --localtime
+    ,TIMESTAMP '{{2025-08-11 00:00:00}}' AS start_date --localtime
+    ,TIMESTAMP '{{2025-08-17 23:59:59}}' AS end_date  --localtime
 )
 
 ,bonus_claimers AS (
@@ -40,7 +40,7 @@ WITH gvars AS ( -- ৫০% স্পোর্টস বেট ইন্স্য
     ,CASE WHEN odds_type_name = 'US' THEN (match_avg_odds / 100) + 1 ELSE match_avg_odds END AS odds
     ,competition_name
   FROM ads_mcd_bh_sport_cricket_game_transaction 
-  WHERE currency_type_name = 'BDT'
+  WHERE currency_type_name = '{{BDT}}'
     AND game_name_en like '%PremiumS%'
     AND competition_name IN ('The Hundred', 'Caribbean Premier League')
     AND system_txn_status_name = 'SETTLED'

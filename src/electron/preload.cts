@@ -1,7 +1,8 @@
 import { contextBridge, ipcRenderer } from "electron";
 
-contextBridge.exposeInMainWorld('electron', {
-  getTestData: () => console.log('static test...'),
+contextBridge.exposeInMainWorld("electron", {
+  getTestData: () => console.log("static test..."),
+
   sendToken: (token: string) => ipcRenderer.invoke("auth:verify", token),
   onAuthStatus: (callback: (data: any) => void) => {
     ipcRenderer.on("auth-status", (_event, data) => callback(data));
@@ -10,11 +11,17 @@ contextBridge.exposeInMainWorld('electron', {
     ipcRenderer.once("auth-status", (_event, data) => callback(data));
   },
 
+  // SQL file management
   getBrands: () => ipcRenderer.invoke("sql:getBrands"),
   getFiles: (brand: string) => ipcRenderer.invoke("sql:getFiles", brand),
   getFileContent: (brand: string, file: string) =>
     ipcRenderer.invoke("sql:getFileContent", brand, file),
-  // Save (overwrite existing file)
   saveFileContent: (brand: string, file: string, content: string) =>
     ipcRenderer.invoke("save-file-content", brand, file, content),
+
+  // 🔹 Credentials popup
+  // openCredentialPopup: () => ipcRenderer.invoke("creds:open"),
+  saveCredentials: (creds: { username: string; password: string }) =>
+    ipcRenderer.invoke("credentials:update", creds),
+  getCredentials: () => ipcRenderer.invoke("credentials:get"),
 });

@@ -5,18 +5,43 @@ import { isDev } from "./util.js";
 import { getPreloadPath } from "./pathResolver.js";
 import admin from "firebase-admin";
 import { verifyIdToken } from "./firebase.js";
-// type test = string;
+import { chromium } from "playwright";
+import https from "https";
+
+// ---------- Helpers ----------
+function checkSiteReachable(url: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    https
+      .get(url, (res) => {
+        resolve(res.statusCode! >= 200 && res.statusCode! < 400);
+      })
+      .on("error", (err) => {
+        console.error("checkSiteReachable error:", err.message);
+        resolve(false);
+      });
+  });
+}
+
+const getSessionBaseDir = () => {
+  if (isDev()) {
+    return path.join(app.getAppPath(), "dist-electron", "session");
+  } else {
+    return path.join(process.resourcesPath, "dist-electron", "session");
+  }
+};
 
 const getSqlBaseDir = () => {
   if (isDev()) {
-    // During development, SQL files are in dist-electron/sql
     return path.join(app.getAppPath(), "dist-electron", "sql");
   } else {
-    // In production, extraResources are unpacked by Electron Builder
     return path.join(process.resourcesPath, "dist-electron", "sql");
   }
 };
 
+const getCredentialsPath = () =>
+  path.join(getSessionBaseDir(), "credentials.json");
+
+// ---------- App ----------
 app.on("ready", () => {
   const mainWindow = new BrowserWindow({
     width: 1920,
@@ -28,8 +53,8 @@ app.on("ready", () => {
     },
   });
 
-  mainWindow.maximize();  // fills the screen but menu bar remains
-  mainWindow.setMenuBarVisibility(true); // ensure menu bar is visible
+  mainWindow.maximize();
+  mainWindow.setMenuBarVisibility(true);
 
   if (isDev()) {
     mainWindow.loadURL("http://localhost:5173");
@@ -104,7 +129,29 @@ ipcMain.handle(
   }
 );
 
-// Save existing SQL file
+// ---------- Credentials management ----------
+ipcMain.handle("credentials:get", async () => {
+  const credPath = getCredentialsPath();
+  if (fs.existsSync(credPath)) {
+    return {
+      success: true,
+      credentials: JSON.parse(fs.readFileSync(credPath, "utf-8")),
+    };
+  }
+  return { success: false, error: "No credentials saved" };
+});
+
+ipcMain.handle(
+  "credentials:update",
+  async (_event, creds: { username: string; password: string }) => {
+    const credPath = getCredentialsPath();
+    fs.mkdirSync(path.dirname(credPath), { recursive: true });
+    fs.writeFileSync(credPath, JSON.stringify(creds, null, 2));
+    return { success: true };
+  }
+);
+
+// ---------- Save & authenticate & run SQL ----------
 ipcMain.handle(
   "save-file-content",
   async (_event, brand: string, file: string, content: string) => {
@@ -112,10 +159,158 @@ ipcMain.handle(
       const filePath = path.join(getSqlBaseDir(), brand, file);
       if (!fs.existsSync(filePath))
         throw new Error("File does not exist (cannot create new files)");
+
       fs.writeFileSync(filePath, content, "utf-8");
-      return { success: true };
+
+      const sessionDir = getSessionBaseDir();
+      fs.mkdirSync(sessionDir, { recursive: true });
+
+      const storageStatePath = path.join(sessionDir, "auth.json");
+      const loginUrl = "https://ar0ytyts.superdv.com/login";
+      const credPath = getCredentialsPath();
+
+      // --- Check VPN/site reachability ---
+      // const reachable = await checkSiteReachable(loginUrl);
+      // if (!reachable) {
+      //   return {
+      //     success: false,
+      //     type: "vpn_error",
+      //     error: "Site not reachable. Please enable VPN first.",
+      //   };
+      // }
+
+      // // --- Check credentials ---
+      // if (!fs.existsSync(credPath)) {
+      //   return {
+      //     success: false,
+      //     type: "credentials_required",
+      //     error: "No credentials found. Please provide username & password.",
+      //   };
+      // }
+      // const credentials = JSON.parse(fs.readFileSync(credPath, "utf-8"));
+
+      // // --- Start Playwright ---
+      // const browser = await chromium.launch({ headless: false });
+      // let context;
+      // if (fs.existsSync(storageStatePath)) {
+      //   context = await browser.newContext({ storageState: storageStatePath });
+      // } else {
+      //   context = await browser.newContext();
+      // }
+
+      // const page = await context.newPage();
+      // await page.goto(loginUrl);
+
+      // // --- Login if no session ---
+      // if (!fs.existsSync(storageStatePath)) {
+      //   await page.fill("#username", credentials.username);
+      //   await page.fill("#password", credentials.password);
+
+      //   try {
+      //     await Promise.all([
+      //       page.waitForURL(/.*\/superset\/(welcome|dashboard).*/, {
+      //         timeout: 15000,
+      //       }),
+      //       page.click('input[type="submit"][value="Sign In"]'),
+      //     ]);
+      //     await context.storageState({ path: storageStatePath });
+      //   } catch (err) {
+      //     await browser.close();
+      //     return {
+      //       success: false,
+      //       type: "invalid_credentials",
+      //       error: "Login failed. Please check username & password.",
+      //     };
+      //   }
+      // }
+
+      // // --- Navigate to SQL Lab ---
+      // try {
+      //   await page.goto("https://ar0ytyts.superdv.com/superset/sqllab");
+      // } catch {
+      //   // Session expired → re-login
+      //   await page.goto(loginUrl);
+      //   await page.fill("#username", credentials.username);
+      //   await page.fill("#password", credentials.password);
+      //   await Promise.all([
+      //     page.waitForURL("**/superset/welcome"),
+      //     page.click('input[type="submit"][value="Sign In"]'),
+      //   ]);
+      //   await context.storageState({ path: storageStatePath });
+      //   await page.goto("https://ar0ytyts.superdv.com/superset/sqllab");
+      // }
+
+      // const title = await page.title();
+
+      // // --- Wait for Ace editor ---
+      // await page.waitForSelector("#ace-editor");
+      // await page.click("#ace-editor");
+      // await page.keyboard.press("Control+A");
+      // await page.keyboard.press("Backspace");
+
+      // // Inject SQL
+      // // console.log("Injecting SQL Query:", content);
+      // // Remove only the curly braces, keep the content inside
+      // const sanitizedSQL = content.replace(/\{\{|\}\}/g, "");
+      // await page.evaluate((sql) => {
+      //   const editor = (window as any).ace.edit("ace-editor");
+      //   editor.setValue(sql, -1);
+      // }, sanitizedSQL);
+
+      // // --- Listen for Superset SQL response ---
+      // const sqlResult = new Promise<any>((resolve, reject) => {
+      //   page.on("response", async (response) => {
+      //     try {
+      //       if (
+      //         response.url().includes("/superset/sql_json/") &&
+      //         response.status() === 200
+      //       ) {
+      //         const body = await response.json();
+      //         if (body.error) {
+      //           reject(new Error(`Query Error: ${body.error}`));
+      //         } else {
+      //           resolve(body);
+      //         }
+      //       }
+      //     } catch (err) {
+      //       reject(err);
+      //     }
+      //   });
+      // });
+
+      // // --- Click Run button ---
+      // await page.click('button.superset-button.cta:has-text("Run")');
+
+      // // --- Wait for SQL result ---
+      // const result = await sqlResult;
+      // console.log("===============================")
+      // console.log(result)
+      // console.log("===============================")
+      // // await browser.close();
+
+      // return {
+      //   success: true,
+      //   type: "success",
+      //   title,
+      //   data: result,
+      //   sessionPath: storageStatePath,
+      // };
+
+      //for testing only
+      return {
+        success: true,
+        type: "success",
+        title: "dwadwa",
+        data: [
+          { Date: "2025-08-22", NSU: 120, FTD: 15, ConversionRate: "12.5%" },
+          { Date: "2025-08-23", NSU: 135, FTD: 18, ConversionRate: "13.3%" },
+          { Date: "2025-08-24", NSU: 110, FTD: 12, ConversionRate: "10.9%" },
+          // Add more rows dynamically
+        ],
+        sessionPath: storageStatePath,
+      };
     } catch (err: any) {
-      return { success: false, error: err.message };
+      return { success: false, type: "auth_error", error: err.message };
     }
   }
 );
