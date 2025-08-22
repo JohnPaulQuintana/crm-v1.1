@@ -6,17 +6,17 @@
     "dist-electron/preload.cjs",
     {
       "from": "dist-electron/config",
-      "to": "dist-electron/config",
+      "to": "config",
       "filter": ["**/*"]
     },
     {
       "from": "dist-electron/sql",
-      "to": "dist-electron/sql",
+      "to": "sql",
       "filter": ["**/*"]
     },
     {
       "from": "dist-electron/session",
-      "to": "dist-electron/session",
+      "to": "session",
       "filter": ["**/*"]
     }
   ],

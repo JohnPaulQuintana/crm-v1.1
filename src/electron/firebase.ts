@@ -5,11 +5,9 @@ import { isDev } from "./util.js";
 
 // Resolve service account path
 
-const serviceAccountPath = path.join(
-        app.getAppPath(),
-        isDev() ? '.' : '..',
-        '/dist-electron/config/firebase-admin.json'
-    )
+const serviceAccountPath = isDev()
+  ? path.join(app.getAppPath(), 'dist-electron', 'config', 'firebase-admin.json')
+  : path.join(process.resourcesPath, 'config', 'firebase-admin.json')
 
 // Initialize Firebase Admin once
 if (!admin.apps.length) {

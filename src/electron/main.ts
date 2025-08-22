@@ -26,7 +26,7 @@ const getSessionBaseDir = () => {
   if (isDev()) {
     return path.join(app.getAppPath(), "dist-electron", "session");
   } else {
-    return path.join(process.resourcesPath, "dist-electron", "session");
+    return path.join(process.resourcesPath, "session");
   }
 };
 
@@ -34,7 +34,7 @@ const getSqlBaseDir = () => {
   if (isDev()) {
     return path.join(app.getAppPath(), "dist-electron", "sql");
   } else {
-    return path.join(process.resourcesPath, "dist-electron", "sql");
+    return path.join(process.resourcesPath, "sql");
   }
 };
 
