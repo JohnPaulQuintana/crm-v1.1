@@ -4,8 +4,7 @@ import { auth } from "../firebase";
 import LoaderModal from "./Loader";
 import VpnPopup from "./VpnPopup";
 import CredPopup from "./CredPopup";
-import { CheckCircle } from "lucide-react";
-
+import { Database, User, CheckCircle } from "lucide-react"; //Home
 interface CrendentialInfo {
   visible: boolean;
   username: string;
@@ -35,13 +34,13 @@ interface SqlFile {
 }
 
 export default function Dashboard({ user, setUser }: DashboardProps) {
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState("sql");
   const [brands, setBrands] = useState<string[]>([]);
   const [files, setFiles] = useState<string[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<string>("");
   const [selectedFile, setSelectedFile] = useState<string>("");
   const [sqlFiles, setSqlFiles] = useState<SqlFile[]>([]);
-  const [status, setStatus] = useState<string | null>(null);
+  // const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showVpn, setShowVpn] = useState(false);
   const [showVpnInfo, setShowVpnInfo] = useState<VpnInfo>({
@@ -54,11 +53,10 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
     password: "",
   });
 
-  const tabNames: Record<string, string> = {
-    dashboard: "Dashboard",
-    profile: "Profile",
-    accounts: "Accounts",
-    sql: "SQL Lab",
+  const tabNames: Record<string, { label: string; icon: React.ReactNode }> = {
+    // dashboard: { label: "Dashboard", icon: <Home size={18} /> },
+    sql: { label: "SQL Lab", icon: <Database size={18} /> },
+    profile: { label: "Profile", icon: <User size={18} /> },
   };
 
   const [activeTabRight, setActiveTabRight] = useState("sql"); // "sql" or "result"
@@ -66,6 +64,7 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const [isRequesting, setIsRequesting] = useState(false);
   const [tableData, setTableData] = useState([]);
+  const [dbName, setDbName] = useState("No Database");
 
   const startTimer = () => {
     // clear any old timer before starting new one
@@ -109,7 +108,7 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
   const handleBrandChange = async (brand: string) => {
     setSelectedBrand(brand);
     setSelectedFile("");
-    setStatus(null);
+    // setStatus(null);
     setFiles([]);
     setSqlFiles([]);
 
@@ -132,7 +131,7 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
 
   const handleFileChange = async (file: string) => {
     setSelectedFile(file);
-    setStatus(null);
+    // setStatus(null);
 
     if (!selectedBrand) return;
 
@@ -145,16 +144,29 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
     }
   };
 
-  // Helper: detect label from value
-  const detectLabel = (val: string) => {
-    const datetimeRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+  // Helper: detect label from value with row context
+  const detectLabel = (val: string, row: string[]) => {
+    const datetimeRegex = /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?$/;
+
+    // collect all date-like values in this row
+    const dates = row
+      .filter((v) => datetimeRegex.test(v))
+      .map((v) => new Date(v))
+      .filter((d) => !isNaN(d.getTime()));
+
     if (datetimeRegex.test(val)) {
-      if (val.includes("00:00:00")) return "Start Date";
-      if (val.includes("23:59:59")) return "End Date";
+      const thisDate = new Date(val);
+      const min = new Date(Math.min(...dates.map((d) => d.getTime())));
+      const max = new Date(Math.max(...dates.map((d) => d.getTime())));
+
+      if (thisDate.getTime() === min.getTime()) return "Start Date";
+      if (thisDate.getTime() === max.getTime()) return "End Date";
       return "Date";
     }
+
     const currencyRegex = /^[A-Z]{3}$/; // e.g. USD, BDT, EUR
     if (currencyRegex.test(val)) return "Currency";
+
     return val; // fallback
   };
 
@@ -184,31 +196,34 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
   const handleSaveAndExecute = async () => {
     if (!selectedBrand || !selectedFile || sqlFiles.length === 0) return;
 
-    setStatus("Saving...");
+    // setStatus("Saving...");
     resetTimer(); // reset before starting
     setElapsedMs(0);
     setIsRequesting(true); // show loader and start timer
     startTimer(); // start tracking time
 
     const sqlToSave = sqlFiles[0].content;
-
-    const res = await window.electron?.saveFileContent(
-      selectedBrand,
-      selectedFile,
-      sqlToSave
-    );
-
+    // 🔹 Switch tab immediately
     setActiveTabRight("result");
 
-    // for debugging only remove the seTImeout in prodcution
-    setTimeout(() => {
+    try {
+      const res = await window.electron?.saveFileContent(
+        selectedBrand,
+        selectedFile,
+        sqlToSave
+      );
+
+      // for debugging only remove the seTImeout in prodcution
+      // setTimeout(() => {
       stopTimer(); // stop timer after request completes
       setIsRequesting(false); // hide loader
       console.log(res);
+
       if (res?.success) {
         setShowVpn(false);
-        setStatus("✅ Saved successfully!");
+        // setStatus("✅ Saved successfully!");
         setTableData(res?.data || []); // store the table data in state
+        setDbName(res?.data.title || "No Database");
       } else {
         if (res?.type === "vpn_error") {
           setShowVpnInfo({
@@ -232,9 +247,25 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
           });
         }
         setShowVpn(true);
-        setStatus("❌ Failed to save file: " + res?.error);
+        // setStatus("❌ Failed to save file: " + res?.error);
       }
-    }, 10000);
+    } catch (err) {
+      const errorMsg =
+        typeof err === "object" && err !== null && "message" in err
+          ? (err as { message?: string }).message
+          : String(err);
+      // setStatus("❌ Error: " + errorMsg);
+      setShowVpnInfo({
+        title: "Unexpected Error",
+        text: errorMsg || "Something went wrong. Please try again later.",
+      });
+      setShowVpn(true);
+    } finally {
+      stopTimer();
+      setIsRequesting(false);
+    }
+
+    // }, 10000);
   };
 
   const wait = (ms: number) =>
@@ -296,17 +327,19 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
           {Object.keys(tabNames).map((tab) => (
             <button
               key={tab}
-              className={`block w-full text-left px-4 py-2 rounded ${
+              className={`flex items-center w-full text-left px-4 py-2 rounded ${
                 activeTab === tab
                   ? "bg-green-500 text-white"
                   : "text-gray-700 hover:bg-gray-200"
               }`}
               onClick={() => setActiveTab(tab)}
             >
-              {tabNames[tab]}
+              <span className="mr-2">{tabNames[tab].icon}</span>
+              {tabNames[tab].label}
             </button>
           ))}
         </nav>
+
         <div className="p-4 border-t">
           <button
             onClick={handleLogout}
@@ -320,7 +353,7 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         <header className="bg-white shadow p-4 flex justify-between items-center">
-          <h1 className="text-xl font-semibold">{tabNames[activeTab]}</h1>
+          <h1 className="text-xl font-semibold">{tabNames[activeTab].label}</h1>
           <div className="flex items-center space-x-4">
             {user.photoURL && (
               <img
@@ -348,35 +381,37 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
           )}
 
           {activeTab === "sql" && (
-            <div className="h-[calc(100vh-4rem)] grid grid-cols-3 gap-2 bg-gray-50">
+            <div className="h-[calc(100vh-4rem)] grid grid-cols-4 gap-2 bg-gray-50">
               {/* Left Controls */}
               <div className="flex flex-col space-y-4 bg-white rounded-lg shadow-md p-4 overflow-y-auto">
-                <h2 className="text-lg font-semibold text-gray-700 mb-2">
-                  Controls
+                <h2 className="text-lg font-semibold text-gray-700">
+                  Editable Contents
                 </h2>
 
                 {/* Brand Selector */}
-                <label className="text-sm font-medium text-gray-600">
-                  Brand
-                </label>
-                <select
-                  value={selectedBrand}
-                  onChange={(e) => handleBrandChange(e.target.value)}
-                  className="border border-gray-300 rounded p-2 focus:outline-none focus:ring-2 focus:ring-green-500"
-                >
-                  <option value="">Select Brand</option>
-                  {brands.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium text-gray-600">
+                    Brand
+                  </label>
+                  <select
+                    value={selectedBrand}
+                    onChange={(e) => handleBrandChange(e.target.value)}
+                    className="border border-gray-300 rounded p-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    <option value="">Select Brand</option>
+                    {brands.map((b) => (
+                      <option key={b} value={b}>
+                        {b}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
                 {/* File Selector */}
                 {files.length > 0 && (
-                  <>
+                  <div className="flex flex-col">
                     <label className="text-sm font-medium text-gray-600">
-                      File
+                      SQL Files
                     </label>
                     <select
                       value={selectedFile}
@@ -390,38 +425,46 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
                         </option>
                       ))}
                     </select>
-                  </>
+                  </div>
                 )}
 
                 {/* Unique Placeholder Inputs */}
                 {sqlFiles.length > 0 &&
-                  Array.from(
-                    new Map(
-                      sqlFiles[0].parsedSegments
-                        .filter((seg) => seg.editable)
-                        .map((seg) => [seg.value, seg])
-                    ).values()
-                  ).map((seg, idx) => (
-                    <div key={idx} className="flex flex-col">
-                      <label className="text-sm font-medium text-gray-600">
-                        {detectLabel(seg.value || "")}
-                      </label>
-                      <input
-                        type="text"
-                        value={seg.value}
-                        onChange={(e) =>
-                          handlePlaceholderChange(
-                            0,
-                            sqlFiles[0].parsedSegments.findIndex(
-                              (s) => s.value === seg.value
-                            ),
-                            e.target.value
-                          )
-                        }
-                        className="border border-green-500 rounded p-2 focus:outline-none focus:ring-2 focus:ring-green-500"
-                      />
-                    </div>
-                  ))}
+                  (() => {
+                    const editableSegs = Array.from(
+                      new Map(
+                        sqlFiles[0].parsedSegments
+                          .filter((seg) => seg.editable)
+                          .map((seg) => [seg.value, seg])
+                      ).values()
+                    );
+
+                    const rowValues = editableSegs
+                      .map((seg) => seg.value)
+                      .filter((v): v is string => typeof v === "string");
+
+                    return editableSegs.map((seg, idx) => (
+                      <div key={idx} className="flex flex-col">
+                        <label className="text-sm font-medium text-gray-600">
+                          {detectLabel(seg.value || "", rowValues)}
+                        </label>
+                        <input
+                          type="text"
+                          value={seg.value}
+                          onChange={(e) =>
+                            handlePlaceholderChange(
+                              0,
+                              sqlFiles[0].parsedSegments.findIndex(
+                                (s) => s.value === seg.value
+                              ),
+                              e.target.value
+                            )
+                          }
+                          className="border border-green-500 rounded p-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                        />
+                      </div>
+                    ));
+                  })()}
 
                 {/* Save Button */}
                 <button
@@ -437,22 +480,22 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
                   {isRequesting ? "Processing..." : "Execute"}
                 </button>
 
-                {status && (
+                {/* {status && (
                   <p className="mt-2 text-sm text-gray-600">{status}</p>
-                )}
+                )} */}
               </div>
 
               {/* Right Panel */}
-              <div className="col-span-2 flex flex-col bg-white rounded-lg shadow-md p-4 font-mono text-sm">
+              <div className="col-span-3 flex flex-col bg-white rounded-lg shadow-md p-4 font-mono text-sm">
                 {/* Tab Header (fixed) */}
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => setActiveTabRight("sql")}
-                      className={`px-3 py-1 font-semibold rounded transition ${
+                      className={`px-3 py-2 font-semibold rounded transition ${
                         activeTabRight === "sql"
-                          ? "bg-gray-200 text-gray-900"
-                          : "text-gray-700 hover:bg-gray-100"
+                          ? "text-white bg-green-500"
+                          : "text-gray-700 bg-gray-200 hover:bg-green-500 hover:text-white"
                       }`}
                     >
                       SQL Preview
@@ -460,10 +503,10 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
 
                     <button
                       onClick={() => setActiveTabRight("result")}
-                      className={`px-3 py-1 font-semibold rounded transition ${
+                      className={`px-3 py-2 font-semibold rounded transition ${
                         activeTabRight === "result"
-                          ? "bg-gray-200 text-gray-900"
-                          : "text-gray-700 hover:bg-gray-100"
+                          ? "text-white bg-green-500"
+                          : "text-gray-700 bg-gray-200 hover:bg-green-500 hover:text-white"
                       }`}
                     >
                       Result
@@ -473,7 +516,7 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
                   <div>
                     <button
                       onClick={handleCredentials}
-                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+                      className="px-3 py-2 bg-gray-200 font-semibold text-gray-700 rounded hover:bg-green-500 hover:text-white transition"
                     >
                       Credentials
                     </button>
@@ -527,78 +570,69 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
                         {tableData.length > 0 ? (
                           <>
                             {/* Action buttons */}
-                            <div className="flex justify-end gap-2 mb-3">
-                              {/* <button
-                                onClick={() => {
-                                  const text = tableData
-                                    .map(
-                                      (row) => Object.values(row).join("\t") // tab-separated
-                                    )
-                                    .join("\n");
-                                  navigator.clipboard.writeText(text);
-                                }}
-                                className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition"
-                              >
-                                Copy
-                              </button> */}
+                            <div className="flex items-center justify-between mb-3">
+                              <div>
+                                <h1>{dbName}</h1>
+                              </div>
+                              <div className="flex justify-end gap-2">
+                                <button
+                                  onClick={() => {
+                                    const today = new Date()
+                                      .toISOString()
+                                      .split("T")[0]; // e.g. 2025-08-22
+                                    const fileName = `CRM-Report_${today}.csv`;
 
-                              <button
-                                onClick={() => {
-                                  const today = new Date()
-                                    .toISOString()
-                                    .split("T")[0]; // e.g. 2025-08-22
-                                  const fileName = `CRM-Report_${today}.csv`;
+                                    const headers = Object.keys(
+                                      tableData[0]
+                                    ).join(",");
+                                    const rows = tableData
+                                      .map((row) =>
+                                        Object.values(row)
+                                          .map((val) => `"${val}"`) // wrap in quotes
+                                          .join(",")
+                                      )
+                                      .join("\n");
+                                    const csv = `${headers}\n${rows}`;
+                                    const blob = new Blob([csv], {
+                                      type: "text/csv;charset=utf-8;",
+                                    });
+                                    const url = URL.createObjectURL(blob);
+                                    const link = document.createElement("a");
+                                    link.href = url;
+                                    link.setAttribute("download", fileName);
+                                    document.body.appendChild(link);
+                                    link.click();
+                                    document.body.removeChild(link);
+                                  }}
+                                  className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition"
+                                >
+                                  Export CSV
+                                </button>
 
-                                  const headers = Object.keys(
-                                    tableData[0]
-                                  ).join(",");
-                                  const rows = tableData
-                                    .map((row) =>
-                                      Object.values(row)
-                                        .map((val) => `"${val}"`) // wrap in quotes
-                                        .join(",")
-                                    )
-                                    .join("\n");
-                                  const csv = `${headers}\n${rows}`;
-                                  const blob = new Blob([csv], {
-                                    type: "text/csv;charset=utf-8;",
-                                  });
-                                  const url = URL.createObjectURL(blob);
-                                  const link = document.createElement("a");
-                                  link.href = url;
-                                  link.setAttribute("download", fileName);
-                                  document.body.appendChild(link);
-                                  link.click();
-                                  document.body.removeChild(link);
-                                }}
-                                className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition"
-                              >
-                                Export CSV
-                              </button>
+                                <button
+                                  onClick={() => {
+                                    const today = new Date()
+                                      .toISOString()
+                                      .split("T")[0]; // e.g. 2025-08-22
+                                    const fileName = `CRM-Report_${today}.xlsx`;
 
-                              <button
-                                onClick={() => {
-                                  const today = new Date()
-                                    .toISOString()
-                                    .split("T")[0]; // e.g. 2025-08-22
-                                  const fileName = `CRM-Report_${today}.xlsx`;
-
-                                  import("xlsx").then((XLSX) => {
-                                    const worksheet =
-                                      XLSX.utils.json_to_sheet(tableData);
-                                    const workbook = XLSX.utils.book_new();
-                                    XLSX.utils.book_append_sheet(
-                                      workbook,
-                                      worksheet,
-                                      "Data"
-                                    );
-                                    XLSX.writeFile(workbook, fileName);
-                                  });
-                                }}
-                                className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition"
-                              >
-                                Export Excel
-                              </button>
+                                    import("xlsx").then((XLSX) => {
+                                      const worksheet =
+                                        XLSX.utils.json_to_sheet(tableData);
+                                      const workbook = XLSX.utils.book_new();
+                                      XLSX.utils.book_append_sheet(
+                                        workbook,
+                                        worksheet,
+                                        "Data"
+                                      );
+                                      XLSX.writeFile(workbook, fileName);
+                                    });
+                                  }}
+                                  className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition"
+                                >
+                                  Export Excel
+                                </button>
+                              </div>
                             </div>
 
                             {/* Table */}

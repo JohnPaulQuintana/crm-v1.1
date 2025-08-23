@@ -4,26 +4,55 @@ import Dashboard from "./components/Dashboard";
 import Init from "./components/Init";
 import { auth } from "./firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import "./App.css"
+import "./App.css";
 
 export default function App() {
   const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true); // show Init immediately
+  const [loading, setLoading] = useState(true);
   const [firebaseReady, setFirebaseReady] = useState(false);
   const [minTimeReached, setMinTimeReached] = useState(false);
+
+  // Function to fetch backend role
+  const fetchUserRole = async (u: any) => {
+    try {
+      const token = await u.getIdToken(true); // force refresh to get latest claims
+      const data = await window.electron!.sendToken(token);
+      if (data.success) {
+        return {
+          uid: data.uid,
+          name: data.name,
+          email: data.email,
+          photoURL: data.photoURL,
+          role: data.role,
+        };
+      }
+    } catch (err) {
+      console.error("Failed to fetch role:", err);
+    }
+    return {
+      uid: u.uid,
+      email: u.email,
+      photoURL: u.photoURL,
+      role: null,
+    };
+  };
 
   useEffect(() => {
     if (!auth) return;
 
     setFirebaseReady(true);
 
-    // Minimum display timeout (e.g., 5s)
     const timer = setTimeout(() => {
       setMinTimeReached(true);
     }, 5000);
 
-    const unsub = onAuthStateChanged(auth, (u) => {
-      setUser(u);
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      if (u) {
+        const fullUser = await fetchUserRole(u);
+        setUser(fullUser);
+      } else {
+        setUser(null);
+      }
     });
 
     return () => {
@@ -32,7 +61,6 @@ export default function App() {
     };
   }, []);
 
-  // Close loader only if both Firebase resolved AND min timeout reached
   useEffect(() => {
     if (minTimeReached && firebaseReady) {
       setLoading(false);

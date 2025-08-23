@@ -40,6 +40,7 @@ declare global {
         type?: string;
         title?: string;
         data?: Array;
+        columns?: Array;
         error?: string;
       }>;
 
