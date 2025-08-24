@@ -33,7 +33,15 @@
     "category": "Utility"
   },
   "win": {
-    "target": ["portable", "msi"],
+    "target": ["nsis"],
     "icon": "./desktopIcon.png"
-  }
+  },
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "JohnPaulQuintana",
+      "repo": "crm-v1.1",
+      "releaseType": "release"
+    }
+  ]
 }

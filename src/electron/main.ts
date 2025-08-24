@@ -8,6 +8,7 @@ import admin from "firebase-admin";
 import { verifyIdToken } from "./firebase.js";
 import { chromium } from "playwright-core";
 import https from "https";
+import { autoUpdater } from "electron-updater";
 
 // Add this function near your other utility functions
 function getChromiumExecutablePath() {
@@ -148,6 +149,22 @@ app.on("ready", () => {
   } else {
     mainWindow.loadFile(path.join(app.getAppPath(), "/dist-react/index.html"));
   }
+
+  // Auto update check
+  autoUpdater.checkForUpdatesAndNotify();
+});
+
+// Optional: log update events
+autoUpdater.on("checking-for-update", () => console.log("Checking for update..."));
+autoUpdater.on("update-available", () => console.log("Update available!"));
+autoUpdater.on("update-not-available", () => console.log("No update available."));
+autoUpdater.on("error", (err) => console.error("Error in auto-updater:", err));
+autoUpdater.on("download-progress", (progress) => {
+  console.log(`Download speed: ${progress.bytesPerSecond} - ${progress.percent.toFixed(2)}%`);
+});
+autoUpdater.on("update-downloaded", () => {
+  console.log("Update downloaded, installing now...");
+  autoUpdater.quitAndInstall();
 });
 
 // ==================================================
