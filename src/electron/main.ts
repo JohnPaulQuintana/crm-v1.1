@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, dialog } from "electron";
 import path from "path";
 import fs from "fs";
 import { spawn } from "child_process";
@@ -8,7 +8,8 @@ import admin from "firebase-admin";
 import { verifyIdToken } from "./firebase.js";
 import { chromium } from "playwright-core";
 import https from "https";
-import { autoUpdater } from "electron-updater";
+import pkg from "electron-updater";
+const { autoUpdater } = pkg;
 
 // Add this function near your other utility functions
 function getChromiumExecutablePath() {
@@ -16,12 +17,18 @@ function getChromiumExecutablePath() {
   const base = path.join(process.resourcesPath, "chromium", "chrome-win");
 
   // In dev, resolve relative to project root
-  const devBase = path.join(app.getAppPath(), "dist-electron", "chromium", "chrome-win");
+  const devBase = path.join(
+    app.getAppPath(),
+    "dist-electron",
+    "chromium",
+    "chrome-win"
+  );
 
   // Decide path
-  const exePath = process.env.NODE_ENV === "development"
-    ? path.join(devBase, "chrome.exe")
-    : path.join(base, "chrome.exe");
+  const exePath =
+    process.env.NODE_ENV === "development"
+      ? path.join(devBase, "chrome.exe")
+      : path.join(base, "chrome.exe");
 
   if (!fs.existsSync(exePath)) {
     throw new Error(`Chromium not found at ${exePath}`);
@@ -29,9 +36,6 @@ function getChromiumExecutablePath() {
 
   return exePath;
 }
-
-
-
 
 // ==================================================
 // Bootstrap Default Resources
@@ -142,7 +146,7 @@ app.on("ready", () => {
   });
 
   mainWindow.maximize();
-  mainWindow.setMenuBarVisibility(true);
+  mainWindow.setMenuBarVisibility(false);
 
   if (isDev()) {
     mainWindow.loadURL("http://localhost:5173");
@@ -154,17 +158,58 @@ app.on("ready", () => {
   autoUpdater.checkForUpdatesAndNotify();
 });
 
-// Optional: log update events
-autoUpdater.on("checking-for-update", () => console.log("Checking for update..."));
-autoUpdater.on("update-available", () => console.log("Update available!"));
-autoUpdater.on("update-not-available", () => console.log("No update available."));
-autoUpdater.on("error", (err) => console.error("Error in auto-updater:", err));
-autoUpdater.on("download-progress", (progress) => {
-  console.log(`Download speed: ${progress.bytesPerSecond} - ${progress.percent.toFixed(2)}%`);
+// 🔔 Update events with dialogs
+autoUpdater.on("checking-for-update", () => {
+  console.log("Checking for update...");
 });
-autoUpdater.on("update-downloaded", () => {
-  console.log("Update downloaded, installing now...");
-  autoUpdater.quitAndInstall();
+
+autoUpdater.on("update-available", (info) => {
+  dialog.showMessageBox({
+    type: "info",
+    title: "Update Available",
+    message: `A new version (${info.version}) is available. It is being downloaded.`,
+  });
+});
+
+autoUpdater.on("update-not-available", () => {
+  console.log("You are already running the latest version.")
+  // dialog.showMessageBox({
+  //   type: "info",
+  //   title: "No Updates",
+  //   message: "You are already running the latest version.",
+  // });
+});
+
+autoUpdater.on("error", (err) => {
+  dialog.showErrorBox(
+    "Update Error",
+    err == null ? "unknown" : (err.stack || err).toString()
+  );
+});
+
+autoUpdater.on("download-progress", (progress) => {
+  console.log(
+    `Download speed: ${progress.bytesPerSecond} - ${progress.percent.toFixed(
+      2
+    )}%`
+  );
+});
+
+autoUpdater.on("update-downloaded", (info) => {
+  dialog
+    .showMessageBox({
+      type: "question",
+      buttons: ["Restart Now", "Later"],
+      defaultId: 0,
+      cancelId: 1,
+      title: "Update Ready",
+      message: `Version ${info.version} has been downloaded. Restart the app now to apply the update.`,
+    })
+    .then((result) => {
+      if (result.response === 0) {
+        autoUpdater.quitAndInstall();
+      }
+    });
 });
 
 // ==================================================
