@@ -7,6 +7,7 @@ import { getPreloadPath } from "./pathResolver.js";
 import admin from "firebase-admin";
 import { verifyIdToken } from "./firebase.js";
 import { chromium } from "playwright-core";
+
 import https from "https";
 import pkg from "electron-updater";
 const { autoUpdater } = pkg;
@@ -172,7 +173,7 @@ autoUpdater.on("update-available", (info) => {
 });
 
 autoUpdater.on("update-not-available", () => {
-  console.log("You are already running the latest version.")
+  console.log("You are already running the latest version.");
   // dialog.showMessageBox({
   //   type: "info",
   //   title: "No Updates",
@@ -341,7 +342,7 @@ ipcMain.handle(
       // const browser = await chromium.launch({ headless: false });
       // Replace your current Playwright launch code with this:
       const browser = await chromium.launch({
-        headless: true,
+        headless: false,
         executablePath: getChromiumExecutablePath(),
         args: [
           "--no-sandbox",
@@ -402,6 +403,21 @@ ipcMain.handle(
 
       const title = await page.title();
 
+      // Click the Add Tab
+      await page.click("button.ant-tabs-nav-add", { force: true });
+
+      // Wait for the new query tab (active AND has a remove button)
+      const newTab = page.locator(
+        ".ant-tabs-tab.ant-tabs-tab-active:has(button.ant-tabs-tab-remove)"
+      );
+      await newTab.waitFor();
+
+      // Grab the tab name
+      const tabName = await newTab
+        .locator(".ant-tabs-tab-btn span")
+        .innerText();
+      console.log("Created query tab:", tabName);
+
       // --- Wait for Ace editor ---
       await page.waitForSelector("#ace-editor");
       await page.click("#ace-editor");
@@ -446,6 +462,26 @@ ipcMain.handle(
       console.log("===============================");
       console.log(result);
       console.log("===============================");
+
+      // --- Close only this tab ---
+      // Wait a bit for the DOM update
+      await page.waitForTimeout(2000);
+      // Target the remove button inside the same tab container
+      const closeBtn = newTab.locator("button.ant-tabs-tab-remove");
+      await closeBtn.click();
+
+      console.log("Closed tab:", tabName);
+
+      // Ensure it’s gone
+      const stillExists = await page
+        .getByRole("tab", { name: tabName })
+        .count();
+      if (stillExists === 0) {
+        console.log("Tab successfully closed");
+      } else {
+        console.error("Tab was not closed!");
+      }
+
       await browser.close();
 
       // return {
