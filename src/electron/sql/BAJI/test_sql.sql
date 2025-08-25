@@ -1,87 +1,91 @@
-WITH gvars AS ( -- ৫০% স্পোর্টস বেট ইন্স্যুরেন্স
+with gvars as ( -- JILI আনলিমিটেড ফ্রি স্পিন
   SELECT
-    '৫০% স্পোর্টস বেট ইন্স্যুরেন্স' AS bonus_title
-    ,'exc00002' AS bonus_code
-    ,200 AS min_init_deposit
-    ,TIMESTAMP '{{2025-08-11 00:00:00}}' AS start_date --localtime
-    ,TIMESTAMP '{{2025-08-17 23:59:59}}' AS end_date  --localtime
+    'JILI আনলিমিটেড ফ্রি স্পিন' as bonus_title
+    ,'rt00005 - JILI Daily Unlimited Free Spins' as bonus_code 
+    ,500 as min_init_deposit --min deposit amount
+    ,TIMESTAMP '2025-08-24 00:00:00' as start_date --localtime
+    ,TIMESTAMP '2025-08-24 23:59:59' as end_date  -- localtime
 )
 
-,bonus_claimers AS (
+,bonus_claimers as (
   SELECT 
-    bt.account_user_id 
-    ,bt.currency_type_name 
-    ,opt_in_tm
-    ,init_deposit 
-  FROM ads_mcd_bh_account_bonus_turnover bt 
-  JOIN (SELECT
-      account_user_id
-      ,currency_type_name
-      ,from_unixtime((MIN(create_time) / 1000) + 21600) AS opt_in_tm
-    FROM ads_mcd_bh_account_bonus_turnover
-    WHERE bonus_code = (SELECT bonus_code FROM gvars)
-      AND bonus_title = (SELECT bonus_title FROM gvars)
+      account_user_id 
+      ,currency_type_name 
+      ,MIN(from_unixtime((create_time / 1000) + 21600)) AS opt_in_tm
+    FROM ads_mcd_bh_account_bonus_turnover  
+    WHERE bonus_code in (SELECT bonus_code FROM gvars)
+      AND bonus_title in (SELECT bonus_title FROM gvars)
       AND init_deposit >= (SELECT min_init_deposit FROM gvars)
-      AND from_unixtime((create_time / 1000) + 21600)
-          BETWEEN (SELECT start_date FROM gvars) AND (SELECT end_date FROM gvars)
-    GROUP BY 1,2  ) bc
-  ON bt.account_user_id = bc.account_user_id 
-    AND opt_in_tm = from_unixtime((create_time / 1000) + 21600)
-    AND bc.currency_type_name = bt.currency_type_name 
+      AND from_unixtime((create_time / 1000) + 21600) between (SELECT start_date FROM gvars) AND (SELECT end_date FROM gvars)
+  GROUP BY 1,2
 )
 
-,game_data AS (
+,bonus_exclusion as (
   SELECT 
-    account_user_id
-    ,currency_type_name
-    ,profit_loss
-    ,from_unixtime((settle_time / 1000) + 21600) AS settle_tm
-    ,from_unixtime((txn_time / 1000) + 21600) AS txn_time
-    ,CASE WHEN odds_type_name = 'US' THEN (match_avg_odds / 100) + 1 ELSE match_avg_odds END AS odds
-    ,competition_name
-  FROM ads_mcd_bh_sport_cricket_game_transaction 
-  WHERE currency_type_name = '{{BDT}}'
-    AND game_name_en like '%PremiumS%'
-    AND competition_name IN ('The Hundred', 'Caribbean Premier League')
-    AND system_txn_status_name = 'SETTLED'
-    AND bonus_wallet_bet_type_name <> 'Bonus Wallet'
-)
-
-,game_txn AS (
-  SELECT 
-    opt_in_tm
-    ,bc.account_user_id
-    ,bc.currency_type_name
-    ,init_deposit
-    ,profit_loss
-    ,txn_time
-    ,settle_tm
-    ,ROW_NUMBER() OVER (PARTITION BY bc.account_user_id, bc.currency_type_name ORDER BY txn_time ASC) AS txn_rank
+    bc.account_user_id 
+    ,SUM(bonus) as bonus_amt
   FROM bonus_claimers bc
-  LEFT JOIN game_data gd
-    ON bc.account_user_id = gd.account_user_id 
-  WHERE txn_time BETWEEN opt_in_tm AND (SELECT end_date FROM gvars)
-    AND settle_tm BETWEEN opt_in_tm AND (SELECT end_date FROM gvars)
-    AND odds >= 1.3
+  LEFT JOIN (SELECT 
+      account_user_id 
+      ,bonus 
+    FROM ads_mcd_bh_account_bonus_turnover
+    WHERE from_unixtime((create_time / 1000) + 21600) 
+      between (SELECT start_date FROM gvars) AND (SELECT end_date FROM gvars)) bt
+  ON bc.account_user_id = bt.account_user_id
+  GROUP BY 1
 )
 
-SELECT
-  user_id AS "Username"
-  ,phone_number as "Phone Number" 
-  ,profit_loss AS "First Bet Loss Amount"
-  ,init_deposit as "Deposit Amount"
-  ,CASE WHEN refund >= init_deposit THEN init_deposit 
-    ELSE refund
-  END as "Refund Amount"
-FROM ( SELECT 
-    account_user_id 
-    ,opt_in_tm
-    ,init_deposit
-    ,profit_loss 
-    ,txn_rank
-    ,cast(abs(profit_loss) * 0.5 as DECIMAL(12,2)) as refund
-  FROM game_txn ) ft
-LEFT JOIN (SELECT user_id , is_phone_verified, phone_number FROM ads_mcd_bh_account)
-ON user_id = account_user_id
-WHERE txn_rank = 1
-  and profit_loss < 0
+,game_txn as (
+  SELECT 
+    bc.account_user_id 
+    ,sum(turnover) as turnover 
+    ,FLOOR(SUM(gt.turnover) / 5000) * 10 AS to_free_spins
+    ,count(*) as game_count
+    ,CASE WHEN count(*) >= 300 THEN 10 ELSE 0 END as gc_free_spins 
+    ,sum(profit_loss) as profit_loss 
+  FROM bonus_claimers bc
+  LEFT JOIN (SELECT 
+      account_user_id
+      ,turnover 
+      ,profit_loss 
+      ,from_unixtime((settle_time / 1000) + 21600) as settle_tm
+    FROM ads_mcd_bh_game_transaction 
+    WHERE game_type_name = 'SLOT'
+      AND game_vendor_name = 'JILI'
+      AND system_txn_status_name = 'SETTLED'
+      AND bonus_wallet_bet_type_name <> 'Bonus Wallet'
+      AND settle_date_id 
+        between (SELECT cast(date(start_date) - interval '1' day as VARCHAR ) FROM gvars) 
+          AND (SELECT cast(date(end_date) + interval '1' day as VARCHAR ) FROM gvars) ) gt
+  ON bc.account_user_id = gt.account_user_id 
+  WHERE settle_tm between opt_in_tm AND (SELECT end_date - interval '2' hour FROM gvars)
+  GROUP BY 1
+)
+
+,pnl_calc as (
+  SELECT 
+    gt.account_user_id 
+    ,profit_loss
+    ,coalesce(bonus_amt,0) as bonus_amt
+    ,profit_loss - coalesce(bonus_amt,0) as profit_loss_ex_bonus
+    ,CASE WHEN (profit_loss * -1) - coalesce(bonus_amt,0) >= 1000 THEN 30 ELSE 0 END as pnl_free_spins
+  FROM game_txn gt
+  LEFT JOIN bonus_exclusion bc
+  ON gt.account_user_id = bc.account_user_id 
+)
+
+SELECT 
+  gt.account_user_id as "User ID"
+  ,phone_number  as "Phone Number"
+  ,turnover as "Total Turnover"
+  ,game_count as "Game Rounds"
+  ,gt.profit_loss as "Net Loss"
+  ,bonus_amt as "Yesterday Bonus Amount"
+  ,profit_loss_ex_bonus as "Profit Loss Minus Bonus"
+  ,to_free_spins + gc_free_spins + pnl_free_spins as "Total Free Spins"
+FROM game_txn gt
+LEFT JOIN (SELECT user_id , is_phone_verified , phone_number FROM ads_mcd_bh_account) aa
+ON account_user_id = user_id 
+LEFT JOIN pnl_calc pc
+ON gt.account_user_id = pc.account_user_id 
+ORDER BY 8 DESC, 1
