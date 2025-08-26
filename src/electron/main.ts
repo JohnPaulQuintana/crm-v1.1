@@ -6,7 +6,7 @@ import { isDev } from "./util.js";
 import { getPreloadPath } from "./pathResolver.js";
 import admin from "firebase-admin";
 import { verifyIdToken } from "./firebase.js";
-import { chromium } from "playwright-core";
+import { chromium, Page, Browser, Locator } from "playwright-core";
 
 import https from "https";
 import pkg from "electron-updater";
@@ -307,42 +307,46 @@ ipcMain.handle(
 ipcMain.handle(
   "save-file-content",
   async (_event, brand: string, file: string, content: string) => {
+    let browser: Browser | undefined;
+    let page: Page | undefined;
+    let newTab: Locator | undefined;
+    let storageStatePath = "";
+
     try {
-      const filePath = ensureFileCopied("sql", brand, file);
-      fs.writeFileSync(filePath, content, "utf-8");
+      // --- File and session setup ---
+      // const filePath = ensureFileCopied("sql", brand, file);
+      // fs.writeFileSync(filePath, content, "utf-8");
 
       const sessionDir = getSessionBaseDir();
       fs.mkdirSync(sessionDir, { recursive: true });
-      const storageStatePath = path.join(sessionDir, "auth.json");
+      storageStatePath = path.join(sessionDir, "auth.json");
+      const metaPath = path.join(sessionDir, "auth_meta.json");
 
       const loginUrl = "https://ar0ytyts.superdv.com/login";
       const credPath = getCredentialsPath();
 
-      // --- Check VPN/site reachability ---
       const reachable = await checkSiteReachable(loginUrl);
       if (!reachable) {
         return {
           success: false,
           type: "vpn_error",
-          error: "Site not reachable. Please enable VPN first.",
+          error: "Site not reachable.",
         };
       }
 
-      // --- Check credentials ---
       if (!fs.existsSync(credPath)) {
         return {
           success: false,
           type: "credentials_required",
-          error: "No credentials found. Please provide username & password.",
+          error: "No credentials found.",
         };
       }
+
       const credentials = JSON.parse(fs.readFileSync(credPath, "utf-8"));
 
-      // --- Start Playwright ---
-      // const browser = await chromium.launch({ headless: false });
-      // Replace your current Playwright launch code with this:
-      const browser = await chromium.launch({
-        headless: false,
+      // --- Launch Playwright ---
+      browser = await chromium.launch({
+        headless: true,
         executablePath: getChromiumExecutablePath(),
         args: [
           "--no-sandbox",
@@ -352,162 +356,169 @@ ipcMain.handle(
         ],
       });
 
-      let context;
-      if (fs.existsSync(storageStatePath)) {
-        context = await browser.newContext({ storageState: storageStatePath });
-      } else {
-        context = await browser.newContext();
+      // --- Determine if we can reuse existing session ---
+      let lastUsername = "";
+      if (fs.existsSync(metaPath)) {
+        lastUsername = JSON.parse(fs.readFileSync(metaPath, "utf-8")).username;
       }
+      const useExistingSession =
+        fs.existsSync(storageStatePath) &&
+        lastUsername === credentials.username;
 
-      const page = await context.newPage();
+      const context = useExistingSession
+        ? await browser.newContext({ storageState: storageStatePath })
+        : await browser.newContext();
+
+      page = await context.newPage();
       await page.goto(loginUrl);
 
-      // --- Login if no session ---
-      if (!fs.existsSync(storageStatePath)) {
-        await page.fill("#username", credentials.username);
-        await page.fill("#password", credentials.password);
-
-        try {
-          await Promise.all([
-            page.waitForURL(/.*\/superset\/(welcome|dashboard).*/, {
-              timeout: 15000,
-            }),
-            page.click('input[type="submit"][value="Sign In"]'),
-          ]);
-          await context.storageState({ path: storageStatePath });
-        } catch (err) {
-          await browser.close();
-          return {
-            success: false,
-            type: "invalid_credentials",
-            error: "Login failed. Please check username & password.",
-          };
-        }
-      }
-
-      // --- Navigate to SQL Lab ---
-      try {
-        await page.goto("https://ar0ytyts.superdv.com/superset/sqllab");
-      } catch {
-        // Session expired → re-login
-        await page.goto(loginUrl);
+      // --- Login if session missing or username changed ---
+      if (!useExistingSession) {
         await page.fill("#username", credentials.username);
         await page.fill("#password", credentials.password);
         await Promise.all([
-          page.waitForURL("**/superset/welcome"),
+          page.waitForURL(/.*\/superset\/(welcome|dashboard).*/, {
+            timeout: 15000,
+          }),
           page.click('input[type="submit"][value="Sign In"]'),
         ]);
         await context.storageState({ path: storageStatePath });
-        await page.goto("https://ar0ytyts.superdv.com/superset/sqllab");
+        fs.writeFileSync(
+          metaPath,
+          JSON.stringify({ username: credentials.username })
+        );
       }
 
-      const title = await page.title();
+      await page.goto("https://ar0ytyts.superdv.com/superset/sqllab");
 
-      // Click the Add Tab
+      // --- Add a new query tab ---
       await page.click("button.ant-tabs-nav-add", { force: true });
+      await page.waitForTimeout(2000);
 
-      // Wait for the new query tab (active AND has a remove button)
-      const newTab = page.locator(
+      newTab = page.locator(
         ".ant-tabs-tab.ant-tabs-tab-active:has(button.ant-tabs-tab-remove)"
       );
       await newTab.waitFor();
 
-      // Grab the tab name
       const tabName = await newTab
         .locator(".ant-tabs-tab-btn span")
         .innerText();
       console.log("Created query tab:", tabName);
 
-      // --- Wait for Ace editor ---
+      // --- Prepare Ace editor ---
       await page.waitForSelector("#ace-editor");
       await page.click("#ace-editor");
       await page.keyboard.press("Control+A");
       await page.keyboard.press("Backspace");
 
-      // Inject SQL
-      // console.log("Injecting SQL Query:", content);
-      // Remove only the curly braces, keep the content inside
       const sanitizedSQL = content.replace(/\{\{|\}\}/g, "");
-      await page.evaluate((sql) => {
+
+      await page.evaluate((sql: string) => {
         const editor = (window as any).ace.edit("ace-editor");
         editor.setValue(sql, -1);
       }, sanitizedSQL);
 
-      // --- Listen for Superset SQL response ---
-      const sqlResult = new Promise<any>((resolve, reject) => {
-        page.on("response", async (response) => {
-          try {
-            if (
-              response.url().includes("/superset/sql_json/") &&
-              response.status() === 200
-            ) {
-              const body = await response.json();
-              if (body.error) {
-                reject(new Error(`Query Error: ${body.error}`));
-              } else {
-                resolve(body);
-              }
-            }
-          } catch (err) {
-            reject(err);
-          }
-        });
-      });
+      // --- Set LIMIT dropdown ---
+      try {
+        // Open dropdown
+        await page.click("a.ant-dropdown-trigger");
 
-      // --- Click Run button ---
-      await page.click('button.superset-button.cta:has-text("Run")');
+        // Wait for the option (example: "1 000")
+        const limitOption = page
+          .locator('li.ant-dropdown-menu-item:has-text("1 000")')
+          .first(); // pick the first match
+        await limitOption.waitFor({ state: "visible", timeout: 5000 });
 
-      // --- Wait for SQL result ---
-      const result = await sqlResult;
-      console.log("===============================");
-      console.log(result);
-      console.log("===============================");
-
-      // --- Close only this tab ---
-      // Wait a bit for the DOM update
-      await page.waitForTimeout(2000);
-      // Target the remove button inside the same tab container
-      const closeBtn = newTab.locator("button.ant-tabs-tab-remove");
-      await closeBtn.click();
-
-      console.log("Closed tab:", tabName);
-
-      // Ensure it’s gone
-      const stillExists = await page
-        .getByRole("tab", { name: tabName })
-        .count();
-      if (stillExists === 0) {
-        console.log("Tab successfully closed");
-      } else {
-        console.error("Tab was not closed!");
+        // Select the option
+        await limitOption.click();
+        console.log("LIMIT dropdown set to 1 000");
+      } catch (err) {
+        console.warn("Failed to set LIMIT dropdown:", (err as Error).message);
       }
 
-      await browser.close();
+      // --- SQL Execution ---
+      let sqlResult: any = null;
 
-      // return {
-      //   success: true,
-      //   type: "success",
-      //   title,
-      //   data: result,
-      //   sessionPath: storageStatePath,
-      // };
+      try {
+        const runButton = page.locator("button.superset-button.cta", {
+          hasText: /Run/i,
+        });
+        await runButton.waitFor({ state: "visible", timeout: 10000 });
+        await runButton.scrollIntoViewIfNeeded();
 
-      // === Testing only (Playwright disabled for now) ===
+        sqlResult = await new Promise<any>((resolve, reject) => {
+          const timeout = setTimeout(
+            () => reject(new Error("SQL query timed out")),
+            60000
+          );
+
+          page?.on("response", async (response) => {
+            try {
+              if (response.url().includes("/superset/sql_json/")) {
+                clearTimeout(timeout);
+
+                if (response.status() === 200) {
+                  const body = await response.json();
+                  if (body.error)
+                    reject(new Error(`Query Error: ${body.error}`));
+                  else resolve(body);
+                } else if (response.status() === 403) {
+                  reject(
+                    new Error(
+                      "Your account does not have enough permissions for this query."
+                    )
+                  );
+                } else {
+                  reject(
+                    new Error(
+                      `SQL request failed with status ${response.status()}`
+                    )
+                  );
+                }
+              }
+            } catch (err) {
+              reject(err);
+            }
+          });
+
+          // Click Run after listener is active
+          runButton.click({ force: true }).catch(reject);
+        });
+      } catch (err: any) {
+        return {
+          success: false,
+          type: "sql_error",
+          error: err.message || "Unknown SQL error",
+          sessionPath: storageStatePath,
+        };
+      }
+
+      // --- Return SQL result ---
       return {
         success: true,
         type: "success",
-        title: result?.query?.db || "No Database",
-        data: result?.data?.length ? result.data : [],
-        columns: result?.columns?.length ? result.columns : [],
-        // data: [
-        //   { Date: "2025-08-22", NSU: 120, FTD: 15, ConversionRate: "12.5%" },
-        //   { Date: "2025-08-23", NSU: 135, FTD: 18, ConversionRate: "13.3%" },
-        //   { Date: "2025-08-24", NSU: 110, FTD: 12, ConversionRate: "10.9%" },
-        // ],
+        title: sqlResult?.query?.db || "No Database",
+        data: sqlResult?.data?.length ? sqlResult.data : [],
+        columns: sqlResult?.columns?.length ? sqlResult.columns : [],
         sessionPath: storageStatePath,
       };
     } catch (err: any) {
       return { success: false, type: "auth_error", error: err.message };
+    } finally {
+      // --- Guaranteed cleanup ---
+      try {
+        if (newTab) {
+          const closeBtn = newTab.locator("button.ant-tabs-tab-remove");
+          await closeBtn.click();
+          console.log("Closed tab");
+        }
+        if (browser) {
+          await browser.close();
+          console.log("Browser closed");
+        }
+      } catch (cleanupErr) {
+        console.error("Cleanup failed:", (cleanupErr as Error).message);
+      }
     }
   }
 );

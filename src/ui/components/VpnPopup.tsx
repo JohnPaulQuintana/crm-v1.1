@@ -16,10 +16,13 @@ const VpnPopup: React.FC<VpnModalProps> = ({ visible, info, setShow  }) => {
         </p>
         <button
           onClick={() => setShow(false)}
-          className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-xl shadow-md transition"
+          className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-xl shadow-md transition mb-4"
         >
           I Understand
         </button>
+        <div className="bg-gray-100 p-2 rounded-md">
+          <span>Need help? contact <b className="text-green-600 font-bold">Bi-Programmer</b></span>
+        </div>
       </div>
     </div>
   );

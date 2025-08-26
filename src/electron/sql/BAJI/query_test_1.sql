@@ -3,8 +3,8 @@ with gvars as ( -- JILI আনলিমিটেড ফ্রি স্পিন
     'JILI আনলিমিটেড ফ্রি স্পিন' as bonus_title
     ,'rt00005 - JILI Daily Unlimited Free Spins' as bonus_code 
     ,500 as min_init_deposit --min deposit amount
-    ,TIMESTAMP '{{2025-08-24 00:00:00}}' as start_date --localtime
-    ,TIMESTAMP '{{2025-08-24 23:59:59}}' as end_date  -- localtime
+    ,TIMESTAMP '{{start_date}}' as start_date --localtime
+    ,TIMESTAMP '{{end_date}}' as end_date  -- localtime
 )
 
 ,bonus_claimers as (
@@ -19,7 +19,6 @@ with gvars as ( -- JILI আনলিমিটেড ফ্রি স্পিন
       AND from_unixtime((create_time / 1000) + 21600) between (SELECT start_date FROM gvars) AND (SELECT end_date FROM gvars)
   GROUP BY 1,2
 )
-
 ,bonus_exclusion as (
   SELECT 
     bc.account_user_id 

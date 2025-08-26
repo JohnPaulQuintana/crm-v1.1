@@ -1,9 +1,9 @@
 WITH gvars as (
   SELECT 
-    'BDT' as currency 
-    ,'Sport' as game_type
-    ,'2025-08-24' as start_date 
-    ,'2025-08-25' as end_date
+    '{{currency}}' as currency 
+    ,'{{game_type}}' as game_type
+    ,'{{start_date}}' as start_date 
+    ,'{{end_date}}' as end_date
 )
 
 SELECT 

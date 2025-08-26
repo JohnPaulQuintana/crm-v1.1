@@ -77,6 +77,7 @@ const CredPopup: React.FC<CredModalProps> = ({ creds, onSave, onClose }) => {
             Save
           </button>
         </div>
+
       </div>
     </div>
   );

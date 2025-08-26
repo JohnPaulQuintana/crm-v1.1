@@ -25,6 +25,7 @@ interface SqlSegment {
   text: string;
   editable?: boolean;
   value?: string;
+  label: string;
 }
 
 interface SqlFile {
@@ -65,6 +66,15 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
   const [isRequesting, setIsRequesting] = useState(false);
   const [tableData, setTableData] = useState([]);
   const [dbName, setDbName] = useState("No Database");
+
+  // --- Add these for pagination ---
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10; // rows per page
+  const totalPages = Math.ceil(tableData.length / pageSize);
+  const paginatedData = tableData.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
 
   const startTimer = () => {
     // clear any old timer before starting new one
@@ -117,16 +127,21 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
   };
 
   const parseSql = (sql: string): SqlSegment[] => {
-    const regex = /(\{\{.*?\}\})/g; // match {{placeholder}}
+    const regex = /(\{\{.*?\}\})/g;
     const parts = sql.split(regex);
-    return parts.map((part) => ({
-      text: part,
-      editable: part.startsWith("{{") && part.endsWith("}}"),
-      value:
-        part.startsWith("{{") && part.endsWith("}}")
-          ? part.slice(2, -2)
-          : undefined,
-    }));
+
+    return parts.map((part) => {
+      const editable = part.startsWith("{{") && part.endsWith("}}");
+      const value = editable ? part.slice(2, -2) : undefined;
+      const label = editable ? detectLabel(value || "") : "";
+      console.log(label);
+      return {
+        text: part,
+        editable,
+        value,
+        label,
+      };
+    });
   };
 
   const handleFileChange = async (file: string) => {
@@ -145,29 +160,31 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
   };
 
   // Helper: detect label from value with row context
-  const detectLabel = (val: string, row: string[]) => {
-    const datetimeRegex = /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?$/;
+  const detectLabel = (val: string) => {
+    // Common SQL placeholder patterns and their labels
+    const labelMappings: Record<string, string> = {
+      start_date: "Start Date",
+      end_date: "End Date",
+      currency: "Currency",
+      min_deposit: "Minimum Deposit",
+      max_deposit: "Maximum Deposit",
+      bonus_code: "Bonus Code",
+      bonus_title: "Bonus Title",
+      min_init_deposit: "Minimum Initial Deposit",
+      promo_period: "Promotion Period",
+      target_currency: "Target Currency",
+    };
 
-    // collect all date-like values in this row
-    const dates = row
-      .filter((v) => datetimeRegex.test(v))
-      .map((v) => new Date(v))
-      .filter((d) => !isNaN(d.getTime()));
-
-    if (datetimeRegex.test(val)) {
-      const thisDate = new Date(val);
-      const min = new Date(Math.min(...dates.map((d) => d.getTime())));
-      const max = new Date(Math.max(...dates.map((d) => d.getTime())));
-
-      if (thisDate.getTime() === min.getTime()) return "Start Date";
-      if (thisDate.getTime() === max.getTime()) return "End Date";
-      return "Date";
+    // Check if we have a predefined mapping
+    if (labelMappings[val]) {
+      return labelMappings[val];
     }
 
-    const currencyRegex = /^[A-Z]{3}$/; // e.g. USD, BDT, EUR
-    if (currencyRegex.test(val)) return "Currency";
-
-    return val; // fallback
+    // Fallback: convert underscores to spaces and capitalize
+    return val
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
   };
 
   const handlePlaceholderChange = (
@@ -439,31 +456,30 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
                       ).values()
                     );
 
-                    const rowValues = editableSegs
-                      .map((seg) => seg.value)
-                      .filter((v): v is string => typeof v === "string");
-
-                    return editableSegs.map((seg, idx) => (
-                      <div key={idx} className="flex flex-col">
-                        <label className="text-sm font-medium text-gray-600">
-                          {detectLabel(seg.value || "", rowValues)}
-                        </label>
-                        <input
-                          type="text"
-                          value={seg.value}
-                          onChange={(e) =>
-                            handlePlaceholderChange(
-                              0,
-                              sqlFiles[0].parsedSegments.findIndex(
-                                (s) => s.value === seg.value
-                              ),
-                              e.target.value
-                            )
-                          }
-                          className="border border-green-500 rounded p-2 focus:outline-none focus:ring-2 focus:ring-green-500"
-                        />
-                      </div>
-                    ));
+                    return editableSegs.map((seg, idx) => {
+                      console.log("Editable segment:", seg.label);
+                      return (
+                        <div key={idx} className="flex flex-col">
+                          <label className="text-sm font-medium text-gray-600">
+                            {seg.label}
+                          </label>
+                          <input
+                            type="text"
+                            value={seg.value}
+                            onChange={(e) =>
+                              handlePlaceholderChange(
+                                0,
+                                sqlFiles[0].parsedSegments.findIndex(
+                                  (s) => s.value === seg.value
+                                ),
+                                e.target.value
+                              )
+                            }
+                            className="border border-green-500 rounded p-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                          />
+                        </div>
+                      );
+                    });
                   })()}
 
                 {/* Save Button */}
@@ -636,6 +652,7 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
                             </div>
 
                             {/* Table */}
+                            {/* Table */}
                             <table className="w-full border-collapse text-sm">
                               <thead>
                                 <tr className="bg-green-100 text-green-900">
@@ -650,7 +667,7 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
                                 </tr>
                               </thead>
                               <tbody>
-                                {tableData.map((row, idx) => (
+                                {paginatedData.map((row, idx) => (
                                   <tr
                                     key={idx}
                                     className={`${
@@ -671,6 +688,33 @@ export default function Dashboard({ user, setUser }: DashboardProps) {
                                 ))}
                               </tbody>
                             </table>
+                            {totalPages > 1 && (
+                              <div className="flex justify-end gap-2 mt-2">
+                                <button
+                                  onClick={() =>
+                                    setCurrentPage((p) => Math.max(p - 1, 1))
+                                  }
+                                  disabled={currentPage === 1}
+                                  className="px-3 py-1 bg-gray-200 rounded hover:bg-green-500 hover:text-white transition disabled:opacity-50"
+                                >
+                                  Prev
+                                </button>
+                                <span className="px-3 py-1">
+                                  Page {currentPage} of {totalPages}
+                                </span>
+                                <button
+                                  onClick={() =>
+                                    setCurrentPage((p) =>
+                                      Math.min(p + 1, totalPages)
+                                    )
+                                  }
+                                  disabled={currentPage === totalPages}
+                                  className="px-3 py-1 bg-gray-200 rounded hover:bg-green-500 hover:text-white transition disabled:opacity-50"
+                                >
+                                  Next
+                                </button>
+                              </div>
+                            )}
                           </>
                         ) : (
                           <p className="text-gray-500">No data to display</p>
