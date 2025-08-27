@@ -17,7 +17,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onLogout
 }) => {
   return (
-    <aside className="w-64 bg-white shadow-lg flex flex-col">
+    <aside className="w-[12rem] bg-white shadow-lg flex flex-col">
       <div className="p-6 text-xl font-bold border-b">CRM</div>
       <nav className="flex-1 p-4 space-y-2">
         {Object.keys(tabNames).map((tab) => (

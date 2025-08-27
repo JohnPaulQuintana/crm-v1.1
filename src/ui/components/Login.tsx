@@ -11,8 +11,10 @@ interface LoginProps {
 }
 
 export default function Login({ setUser }: LoginProps) {
-  const [email, setEmail] = useState("exousia.navi@auroramy.com");
-  const [password, setPassword] = useState("3tYfGWEwHzDTZ7S");
+  // const [email, setEmail] = useState("exousia.navi@auroramy.com");
+  // const [password, setPassword] = useState("3tYfGWEwHzDTZ7S");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);

@@ -15,7 +15,11 @@ interface SqlLeftPanelProps {
   onExecute: () => void;
   setActiveTabRight: (tab: string) => void;
   setShowVpnInfo: (info: { title: string; text: string }) => void; // setter
-  setShow: (show: boolean) => void; // setter function
+  setScriptDescription: (desc: {
+    columns: string[];
+    description: string;
+  }) => void;
+  // setShow: (show: boolean) => void; // setter function
 }
 
 export const SqlLeftPanel: React.FC<SqlLeftPanelProps> = memo(
@@ -33,16 +37,18 @@ export const SqlLeftPanel: React.FC<SqlLeftPanelProps> = memo(
     onExecute,
     setActiveTabRight,
     setShowVpnInfo,
-    setShow,
+    setScriptDescription,
+    // setShow,
   }) => {
     // Get unique editable segments
     const uniqueEditableSegments = useMemo(() => {
-      if (sqlFiles.length === 0) return [];
+      if (!selectedFile || sqlFiles.length === 0) return [];
 
+      const file = sqlFiles.find((f) => f.name === selectedFile) || sqlFiles[0];
       const seenValues = new Set();
       const uniqueSegments: { value: string; label: string }[] = [];
 
-      sqlFiles[0].parsedSegments.forEach((seg) => {
+      file.parsedSegments.forEach((seg) => {
         if (seg.editable && seg.value && !seenValues.has(seg.value)) {
           seenValues.add(seg.value);
           uniqueSegments.push({ value: seg.value, label: seg.label });
@@ -50,7 +56,7 @@ export const SqlLeftPanel: React.FC<SqlLeftPanelProps> = memo(
       });
 
       return uniqueSegments;
-    }, [sqlFiles]);
+    }, [sqlFiles, selectedFile]);
 
     const handleExecuteClick = () => {
       // Check for empty required inputs
@@ -59,7 +65,7 @@ export const SqlLeftPanel: React.FC<SqlLeftPanelProps> = memo(
       );
 
       if (emptyInputs.length > 0) {
-        setShow(true);
+        // setShow(true);
         setShowVpnInfo({
           title: "Validation Failed",
           text: `Please fill in all required fields: ${emptyInputs
@@ -107,11 +113,31 @@ export const SqlLeftPanel: React.FC<SqlLeftPanelProps> = memo(
             </label>
             <select
               value={selectedFile}
-              onChange={(e) => {
-                setActiveTabRight("sql");
-                onFileChange(e.target.value);
+              onChange={async (e) => {
+                const file = e.target.value;
+                setActiveTabRight("description");
+                onFileChange(file)
+                try {
+                  const res = await window.electron?.getSqlByDescription(file);
+                  if (res?.success) {
+                    // update parent state
+                    setScriptDescription({
+                      columns: res.columns || [],
+                      description: res.description || "",
+                    });
+                  } else {
+                    console.error(
+                      "Failed to fetch SQL description:",
+                      res?.error
+                    );
+                    setScriptDescription({ columns: [], description: "" });
+                  }
+                } catch (err) {
+                  console.error("Error calling sql:getDescription:", err);
+                  setScriptDescription({ columns: [], description: "" });
+                }
               }}
-              disabled={isRequesting} // ⬅ disable while running
+              disabled={isRequesting}
               className="border border-gray-300 rounded p-2 focus:outline-none focus:ring-2 focus:ring-green-500"
             >
               <option value="">Select File</option>
@@ -133,7 +159,7 @@ export const SqlLeftPanel: React.FC<SqlLeftPanelProps> = memo(
               type="text"
               value={inputValues[seg.value] || ""}
               onChange={(e) => onPlaceholderChange(seg.value, e.target.value)}
-              disabled={isRequesting} // ⬅ disable while running
+              disabled={isRequesting}
               className="border border-gray-300 text-gray-700 font-semibold rounded p-2 focus:outline-none focus:ring-2 focus:ring-green-500"
               placeholder="Enter value..."
             />

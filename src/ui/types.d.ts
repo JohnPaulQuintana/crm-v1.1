@@ -54,6 +54,16 @@ declare global {
         username: string;
         password: string;
       }) => Promise<{ success: boolean; error?: string }>;
+
+      getSqlByDescription: (
+        sql_title: string
+      ) => Promise<{
+        columns: never[];
+        success: boolean;
+        title: string;
+        error?: string;
+        description: string;
+      }>;
     };
   }
 }

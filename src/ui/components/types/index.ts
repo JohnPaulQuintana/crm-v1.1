@@ -22,6 +22,11 @@ export interface VpnInfo {
   text: string;
 }
 
+export interface Description {
+  columns: string[];
+  description: string;
+}
+
 export interface SqlSegment {
   text: string;
   editable?: boolean;

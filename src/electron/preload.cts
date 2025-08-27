@@ -17,11 +17,15 @@ contextBridge.exposeInMainWorld("electron", {
   getFileContent: (brand: string, file: string) =>
     ipcRenderer.invoke("sql:getFileContent", brand, file),
   saveFileContent: (brand: string, file: string, content: string) =>
-    ipcRenderer.invoke("save-file-content", brand, file, content),
+    ipcRenderer.invoke("sql:runFile", brand, file, content),
 
   // 🔹 Credentials popup
   // openCredentialPopup: () => ipcRenderer.invoke("creds:open"),
   saveCredentials: (creds: { username: string; password: string }) =>
     ipcRenderer.invoke("credentials:update", creds),
   getCredentials: () => ipcRenderer.invoke("credentials:get"),
+
+  //get scripts descriptions
+  getSqlByDescription: (sql_title: string) =>
+    ipcRenderer.invoke("sql:getDescription", sql_title),
 });

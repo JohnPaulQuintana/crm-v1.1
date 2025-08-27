@@ -16,7 +16,7 @@ export const useBrandsAndFiles = () => {
     setSelectedBrand(brand);
     setSelectedFile('');
     setFiles([]);
-
+    
     const res = await window.electron?.getFiles(brand);
     if (res?.success) setFiles(res.files ?? []);
   };
