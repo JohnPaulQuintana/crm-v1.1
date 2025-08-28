@@ -3,10 +3,10 @@ import type { SqlFile } from "../../../types";
 import { SqlPreview } from "./SqlPreview";
 import { ResultPanel } from "./ResultPanel";
 import DescriptionPreview from "./Description";
-import StatusCard from "./StatusCard";
+// import StatusCard from "./StatusCard";
 interface SqlRightPanelProps {
   activeTabRight: string;
-  // setActiveTabRight: (tab: string) => void;
+  setActiveTabRight: (tab: string) => void;
   sqlFiles: SqlFile[];
   isRequesting: boolean;
   // elapsedMs: number;
@@ -23,7 +23,7 @@ interface SqlRightPanelProps {
 
 export const SqlRightPanel: React.FC<SqlRightPanelProps> = ({
   activeTabRight,
-  // setActiveTabRight,
+  setActiveTabRight,
   sqlFiles,
   isRequesting,
   // elapsedMs,
@@ -33,74 +33,20 @@ export const SqlRightPanel: React.FC<SqlRightPanelProps> = ({
   totalPages,
   pageSize,
   onPageChange,
-  onCredentials,
+  // onCredentials,
   showSupersetError,
-  scriptDescription
+  scriptDescription,
 }) => {
   return (
-    <div className="col-span-3 flex flex-col bg-white rounded-lg shadow-md p-4 font-mono text-sm">
-      <div className="flex items-center justify-between mb-1">
-        <div className="flex items-center gap-3">
-          {/* SQL Preview tab - keep onClick commented */}
-          <button
-            // onClick={() => setActiveTabRight('sql')}
-            className={`hidden px-3 py-2 font-semibold rounded transition pointer-events-none ${
-              activeTabRight === "sql"
-                ? "text-white bg-green-500"
-                : "text-gray-700 bg-gray-200"
-            }`}
-            disabled={isRequesting} // disabled while running
-          >
-            SQL Preview
-          </button>
-
-          {/* Script Description tab */}
-          <button
-            // onClick={() => setActiveTabRight("description")}
-            className={`px-3 py-2 font-semibold rounded transition pointer-events-none ${
-              activeTabRight === "description"
-                ? "text-white bg-green-500"
-                : "text-gray-700 bg-gray-200"
-            }`}
-            disabled={isRequesting}
-          >
-            Script Description
-          </button>
-
-          {/* Result tab */}
-          <button
-            // onClick={() => setActiveTabRight("result")}
-            className={`px-3 py-2 font-semibold rounded transition pointer-events-none ${
-              activeTabRight === "result"
-                ? "text-white bg-green-500"
-                : "text-gray-700 bg-gray-200"
-            }`}
-            disabled={isRequesting}
-          >
-            Result
-          </button>
-        </div>
-
-        <div className="hidden">
-          <button
-            onClick={onCredentials}
-            disabled={isRequesting} // ⬅ disable while running
-            className="px-3 py-2 bg-gray-200 font-semibold text-gray-700 rounded hover:bg-green-500 hover:text-white transition"
-          >
-            Credentials
-          </button>
-        </div>
-
-        <StatusCard isRequesting={isRequesting} />
-      </div>
-
+    <div className="col-span-3 flex flex-col bg-white rounded-lg shadow-md font-mono text-sm">
       <div className="flex-1 max-h-[80vh] overflow-y-auto">
         {/* // Completed state with final time */}
-
         {activeTabRight === "sql" && <SqlPreview sqlFiles={sqlFiles} />}
         {activeTabRight === "result" && (
           <ResultPanel
-            // isRequesting={isRequesting}
+            activeTabRight={activeTabRight}
+            setActiveTabRight={setActiveTabRight}
+            isRequesting={isRequesting}
             // elapsedMs={elapsedMs}
             tableData={tableData}
             // dbName={dbName}
@@ -113,6 +59,9 @@ export const SqlRightPanel: React.FC<SqlRightPanelProps> = ({
         )}
         {activeTabRight === "description" && (
           <DescriptionPreview
+            activeTabRight={activeTabRight}
+            setActiveTabRight={setActiveTabRight}
+            isRequesting={isRequesting}
             description={scriptDescription.description}
             columns={scriptDescription.columns}
           />

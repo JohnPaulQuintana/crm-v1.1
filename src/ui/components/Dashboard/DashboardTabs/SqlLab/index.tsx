@@ -156,7 +156,7 @@ export const SqlLab: React.FC<SqlLabProps> = memo(
 
       Object.entries(updates).forEach(([key, value]) => {
         inputValuesRef.current[key] = value; // persist into ref
-        updatePlaceholder(key, value); // sync UI if needed
+        // updatePlaceholder(key, value); // sync UI if needed
       });
 
       // Always start from the original template
@@ -227,7 +227,7 @@ export const SqlLab: React.FC<SqlLabProps> = memo(
     }, [selectedBrand, selectedFile, loadFileContent]);
 
     return (
-      <div className="h-[calc(100vh-4rem)] grid grid-cols-4 gap-2 bg-gray-50">
+      <div className="h-[calc(100vh-4rem)] grid grid-cols-4 gap-1 bg-gray-50">
         <SqlLeftPanel
           brands={brands}
           files={files}
@@ -248,7 +248,7 @@ export const SqlLab: React.FC<SqlLabProps> = memo(
 
         <SqlRightPanel
           activeTabRight={activeTabRight}
-          // setActiveTabRight={setActiveTabRight}
+          setActiveTabRight={setActiveTabRight}
           sqlFiles={sqlFiles}
           isRequesting={isRequesting}
           // elapsedMs={elapsedMs}

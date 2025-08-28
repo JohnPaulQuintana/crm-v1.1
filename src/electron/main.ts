@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, globalShortcut, screen } from "electron";
 import path from "path";
 import { isDev } from "./util.js";
 import { getPreloadPath } from "./pathResolver.js";
@@ -11,6 +11,9 @@ import { bootstrapResources } from "./resources.js";
 import { registerSqlDescriptionHandlers } from "./sqlDescription.js";
 
 app.on("ready", () => {
+  const display = screen.getPrimaryDisplay();
+  const scaleFactor = display.scaleFactor; // e.g. 1, 1.25, 1.5, 2
+  // console.log(scaleFactor)
   bootstrapResources();
 
   const mainWindow = new BrowserWindow({
@@ -20,8 +23,13 @@ app.on("ready", () => {
     autoHideMenuBar: true,
     webPreferences: {
       preload: getPreloadPath(),
+      devTools: isDev(), // ⛔ disable DevTools in production
+      zoomFactor: 2, // adjust this to scale UI
     },
   });
+
+   // ✅ Apply scaling so UI looks the same on all resolutions
+  mainWindow.webContents.setZoomFactor(scaleFactor);
 
   mainWindow.maximize();
   mainWindow.setMenuBarVisibility(false);
@@ -30,6 +38,21 @@ app.on("ready", () => {
     mainWindow.loadURL("http://localhost:5173");
   } else {
     mainWindow.loadFile(path.join(app.getAppPath(), "/dist-react/index.html"));
+
+    // 🚫 Prevent DevTools opening in production
+    mainWindow.webContents.on("devtools-opened", () => {
+      mainWindow.webContents.closeDevTools();
+    });
+
+    // 🚫 Block DevTools shortcuts
+    app.on("browser-window-focus", () => {
+      globalShortcut.register("CommandOrControl+Shift+I", () => false);
+      globalShortcut.register("F12", () => false);
+    });
+
+    app.on("browser-window-blur", () => {
+      globalShortcut.unregisterAll();
+    });
   }
 
   setupAutoUpdater(mainWindow); // forward updater events to window instead of blocking dialogs
@@ -40,6 +63,7 @@ app.on("ready", () => {
   registerCredentialHandlers(ipcMain);
   registerSqlDescriptionHandlers(ipcMain);
 });
+
 
 
 // import { app, BrowserWindow, ipcMain, dialog } from "electron";

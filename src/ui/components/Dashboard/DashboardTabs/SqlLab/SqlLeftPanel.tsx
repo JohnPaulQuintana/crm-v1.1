@@ -1,5 +1,6 @@
 import React, { useMemo, memo } from "react";
 import type { SqlFile } from "../../../types";
+import { segmentConfigs } from "../../../configs/segmentConfigs";
 
 interface SqlLeftPanelProps {
   brands: string[];
@@ -84,100 +85,142 @@ export const SqlLeftPanel: React.FC<SqlLeftPanelProps> = memo(
     };
 
     return (
-      <div className="flex flex-col space-y-4 bg-white rounded-lg shadow-md p-4 overflow-y-auto">
-        <h2 className="text-lg font-semibold text-gray-700">
-          Editable Contents
-        </h2>
-
-        <div className="flex flex-col">
-          <label className="text-sm font-medium text-gray-600">Brand</label>
-          <select
-            value={selectedBrand}
-            onChange={(e) => onBrandChange(e.target.value)}
-            disabled={isRequesting} // ⬅ disable while running
-            className="border border-gray-300 rounded p-2 focus:outline-none focus:ring-2 focus:ring-green-500"
-          >
-            <option value="">Select Brand</option>
-            {brands.map((b) => (
-              <option key={b} value={b}>
-                {b}
-              </option>
-            ))}
-          </select>
+      <div className="">
+        <div className="flex items-center justify-between bg-gradient-to-r from-green-500 via-green-600 to-green-700 p-3">
+          <h2 className="text-lg font-semibold text-white">
+            Editable Contents
+          </h2>
         </div>
-
-        {files.length > 0 && (
+        <div className="flex flex-col space-y-4 bg-white rounded-lg p-4 overflow-y-auto">
           <div className="flex flex-col">
-            <label className="text-sm font-medium text-gray-600">
-              SQL Files
-            </label>
+            <label className="text-sm font-medium text-gray-600">Brand</label>
             <select
-              value={selectedFile}
-              onChange={async (e) => {
-                const file = e.target.value;
-                setActiveTabRight("description");
-                onFileChange(file)
-                try {
-                  const res = await window.electron?.getSqlByDescription(file);
-                  if (res?.success) {
-                    // update parent state
-                    setScriptDescription({
-                      columns: res.columns || [],
-                      description: res.description || "",
-                    });
-                  } else {
-                    console.error(
-                      "Failed to fetch SQL description:",
-                      res?.error
-                    );
-                    setScriptDescription({ columns: [], description: "" });
-                  }
-                } catch (err) {
-                  console.error("Error calling sql:getDescription:", err);
-                  setScriptDescription({ columns: [], description: "" });
-                }
-              }}
-              disabled={isRequesting}
+              value={selectedBrand}
+              onChange={(e) => onBrandChange(e.target.value)}
+              disabled={isRequesting} // ⬅ disable while running
               className="border border-gray-300 rounded p-2 focus:outline-none focus:ring-2 focus:ring-green-500"
             >
-              <option value="">Select File</option>
-              {files.map((f) => (
-                <option key={f} value={f}>
-                  {f}
+              <option value="">Select Brand</option>
+              {brands.map((b) => (
+                <option key={b} value={b}>
+                  {b}
                 </option>
               ))}
             </select>
           </div>
-        )}
 
-        {uniqueEditableSegments.map((seg) => (
-          <div key={seg.value} className="flex flex-col">
-            <label className="text-sm font-medium text-gray-600">
-              {seg.label}
-            </label>
-            <input
-              type="text"
-              value={inputValues[seg.value] || ""}
-              onChange={(e) => onPlaceholderChange(seg.value, e.target.value)}
-              disabled={isRequesting}
-              className="border border-gray-300 text-gray-700 font-semibold rounded p-2 focus:outline-none focus:ring-2 focus:ring-green-500"
-              placeholder="Enter value..."
-            />
-          </div>
-        ))}
+          {files.length > 0 && (
+            <div className="flex flex-col">
+              <label className="text-sm font-medium text-gray-600">
+                SQL Files
+              </label>
+              <select
+                value={selectedFile}
+                onChange={async (e) => {
+                  const file = e.target.value;
+                  setActiveTabRight("description");
+                  onFileChange(file);
+                  try {
+                    const res = await window.electron?.getSqlByDescription(
+                      file
+                    );
+                    if (res?.success) {
+                      // update parent state
+                      setScriptDescription({
+                        columns: res.columns || [],
+                        description: res.description || "",
+                      });
+                    } else {
+                      console.error(
+                        "Failed to fetch SQL description:",
+                        res?.error
+                      );
+                      setScriptDescription({ columns: [], description: "" });
+                    }
+                  } catch (err) {
+                    console.error("Error calling sql:getDescription:", err);
+                    setScriptDescription({ columns: [], description: "" });
+                  }
+                }}
+                disabled={isRequesting}
+                className="border border-gray-300 rounded p-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                <option value="">Select File</option>
+                {files.map((f) => (
+                  <option key={f} value={f}>
+                    {f}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
-        <button
-          onClick={handleExecuteClick}
-          disabled={isRequesting}
-          className={`mt-2 w-full px-4 py-2 rounded transition-colors 
+          {uniqueEditableSegments.map((seg) => {
+            // console.log(seg)
+            const config = segmentConfigs[seg.value] || { type: "text" };
+
+            return (
+              <div key={seg.value} className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600">
+                  {seg.label}
+                </label>
+
+                {config.type === "date" ? (
+                  <input
+                    type="date"
+                    value={inputValues[seg.value] || ""}
+                    onChange={(e) => {
+                      // console.log(e.target.value)
+                      onPlaceholderChange(seg.value, e.target.value);
+                    }}
+                    disabled={isRequesting}
+                    className="border border-gray-300 text-gray-700 font-semibold rounded p-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                ) : config.type === "select" ? (
+                  <select
+                    value={inputValues[seg.value] || ""}
+                    onChange={(e) =>
+                      onPlaceholderChange(seg.value, e.target.value)
+                    }
+                    disabled={isRequesting}
+                    className="border border-gray-300 text-gray-700 font-semibold rounded p-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    <option value="">Select...</option>
+                    {config.options?.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={inputValues[seg.value] || ""}
+                    onChange={(e) =>
+                      onPlaceholderChange(seg.value, e.target.value)
+                    }
+                    disabled={isRequesting}
+                    className="border border-gray-300 text-gray-700 font-semibold rounded p-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="Enter value..."
+                  />
+                )}
+              </div>
+            );
+          })}
+
+          <button
+            onClick={handleExecuteClick}
+            disabled={isRequesting}
+            className={`mt-2 w-full px-4 py-2 rounded transition-colors 
           ${
             isRequesting
               ? "bg-gray-400 cursor-not-allowed"
               : "bg-green-600 hover:bg-green-700 text-white"
           }`}
-        >
-          {isRequesting ? "Processing..." : "Execute"}
-        </button>
+          >
+            {isRequesting ? "Processing..." : "Execute"}
+          </button>
+        </div>
       </div>
     );
   }

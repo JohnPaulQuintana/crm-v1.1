@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { signOut } from "firebase/auth";
-import { Database, User } from "lucide-react";
+import { Database } from "lucide-react";
 import { auth } from "../../firebase";
 import LoaderModal from "../Loader";
 import VpnPopup from "../VpnPopup";
-import CredPopup from "../CredPopup";
+import CredPopup from "../CredPopup-notused";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { SqlLab } from "../Dashboard/DashboardTabs/SqlLab/index";
@@ -18,7 +18,7 @@ import type {
 
 const tabNames: TabConfig = {
   sql: { label: "SQL Lab", icon: <Database size={18} /> },
-  profile: { label: "Profile", icon: <User size={18} /> },
+  // profile: { label: "Profile", icon: <User size={18} /> },
 };
 
 export const Dashboard: React.FC<DashboardProps> = ({ user, setUser }) => {

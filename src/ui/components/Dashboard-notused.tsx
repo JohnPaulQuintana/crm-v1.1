@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { auth } from "../firebase";
 import LoaderModal from "./Loader";
 import VpnPopup from "./VpnPopup";
-import CredPopup from "./CredPopup";
+import CredPopup from "./CredPopup-notused";
 import { Database, User, CheckCircle } from "lucide-react"; //Home
 interface CrendentialInfo {
   visible: boolean;
