@@ -368,7 +368,7 @@ export function registerSqlHandlers(ipcMain: IpcMain) {
 
         // --- Launch Playwright ---
         browser = await chromium.launch({
-          headless: false,
+          headless: true,
           executablePath: getChromiumExecutablePath(),
           args: [
             "--no-sandbox",
