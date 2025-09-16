@@ -1,3 +1,6 @@
+// src/renderer/types/index.ts
+import React from "react";
+
 export interface User {
   uid: string;
   email: string;
@@ -45,4 +48,73 @@ export interface TabConfig {
     label: string;
     icon: React.ReactNode;
   };
+}
+
+// ---------------------- Asana SQL Types ----------------------
+export interface InputField {
+  name: string;
+  default: string;
+  type: "text" | "date" | "select";
+  options?: string[];
+}
+
+export interface ParsedSql {
+  editable_contents?: Record<string, string>;
+  supported_values?: Record<string, string[]>;
+  template_script: string;
+}
+
+export interface LatestSql {
+  gid: string;
+  created_at: string;
+  created_by: string;
+  parsed_sql: ParsedSql;
+}
+
+export interface Identity {
+  brand?: string;
+  currency?: string | null;
+}
+
+export interface Task {
+  gid: string;
+  name: string;
+  notes: string;
+  identity: {
+    brand?: string;
+    currency?: string | null;
+  };
+  latest_sql?: {
+    gid: string;
+    created_at: string;
+    created_by: string;
+    parsed_sql: {
+      editable_contents?: Record<string, string>;
+      supported_values?: Record<string, string[]>;
+      template_script: string;
+    };
+  };
+  inputs?: InputField[];
+}
+
+export interface Section {
+  section_name: string;
+  section_gid: string;
+  task_count: number;
+  tasks: Task[];
+}
+
+export interface ExecutionResult {
+  success: boolean;
+  data?: any[];
+  title?: string;
+  error?: any;
+  type?: string;
+}
+
+export interface InputField {
+  name: string;
+  default: string;
+  type: "text" | "date" | "select";
+  options?: string[];
 }

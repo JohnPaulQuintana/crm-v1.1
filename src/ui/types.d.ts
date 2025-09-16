@@ -1,3 +1,5 @@
+import type { Section } from "./types";
+
 export {};
 
 declare global {
@@ -39,8 +41,8 @@ declare global {
         success: boolean;
         type?: string;
         title?: string;
-        data?: Array;
-        columns?: Array;
+        data?: any[];
+        columns?: any[];
         error?: string;
       }>;
 
@@ -63,6 +65,20 @@ declare global {
         title: string;
         error?: string;
         description: string;
+      }>;
+
+      // 🔹 Asana tasks
+      getAsanaTasks: (projectGid: string) => Promise<{
+        success: boolean;
+        sections?: Section[];
+        error?: string;
+      }>;
+
+      // 🔹 Asana projects
+      getAsanaProjects: () => Promise<{
+        success: boolean;
+        projects?: { gid: string; name: string }[];
+        error?: string;
       }>;
     };
   }

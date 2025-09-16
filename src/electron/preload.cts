@@ -28,4 +28,10 @@ contextBridge.exposeInMainWorld("electron", {
   //get scripts descriptions
   getSqlByDescription: (sql_title: string) =>
     ipcRenderer.invoke("sql:getDescription", sql_title),
+
+  // 🔹 NEW: Fetch Asana tasks
+  getAsanaTasks: (projectGid: string) =>
+    ipcRenderer.invoke("sql:getFromAsana", projectGid),
+
+  getAsanaProjects: () => ipcRenderer.invoke("sql:getProjects"),
 });

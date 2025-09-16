@@ -1,6 +1,5 @@
 import React from "react";
 import { Database } from "lucide-react";
-// import { div } from "framer-motion/client";
 import StatusCard from "./StatusCard";
 
 interface DescriptionPreviewProps {
@@ -18,12 +17,9 @@ const DescriptionPreview: React.FC<DescriptionPreviewProps> = ({
   description,
   columns = [],
 }) => {
-  // Split description by dash and trim whitespace
-  const descriptionLines = description
-    ? description
-        .split("-")
-        .map((line) => line.trim())
-        .filter(Boolean)
+  // Simple parser: split by double line breaks to get paragraphs
+  const paragraphs = description
+    ? description.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean)
     : [];
 
   return (
@@ -33,53 +29,43 @@ const DescriptionPreview: React.FC<DescriptionPreviewProps> = ({
           <h2 className="text-lg font-semibold text-white">Description</h2>
         </div>
         <div className="flex items-center justify-end gap-2">
-          {/* SQL Preview tab */}
           <button
-            // onClick={() => setActiveTabRight('sql')}
-            className={`hidden px-3 py-2 font-medium rounded-lg transition ${
-              activeTabRight === "sql"
-                ? "bg-white text-green-700 shadow"
-                : "bg-transparent text-white hover:bg-white/20"
-            }`}
-            disabled={isRequesting}
-          >
-            SQL Preview
-          </button>
-
-          {/* Script Description tab */}
-          <button
-            onClick={() => setActiveTabRight("description")}
             className={`px-3 py-2 font-medium rounded-lg transition ${
               activeTabRight === "description"
                 ? "text-white bg-green-500"
                 : "text-gray-700 bg-gray-200"
             }`}
+            onClick={() => setActiveTabRight("description")}
             disabled={isRequesting}
           >
             Script Description
           </button>
-
-          {/* Result tab */}
           <button
-            onClick={() => setActiveTabRight("result")}
             className={`px-3 py-2 font-medium rounded-lg transition ${
               activeTabRight === "result"
                 ? "bg-white text-green-700 shadow"
                 : "bg-transparent text-white hover:bg-white/20"
             }`}
+            onClick={() => setActiveTabRight("result")}
             disabled={isRequesting}
           >
             Result
           </button>
         </div>
       </div>
-      <div className={`p-2 ${isRequesting ? 'flex' : 'hidden'} items-center justify-end bg-gradient-to-r from-green-200 via-green-400 to-green-600`}>
+
+      <div
+        className={`p-2 ${
+          isRequesting ? "flex" : "hidden"
+        } items-center justify-end bg-gradient-to-r from-green-200 via-green-400 to-green-600`}
+      >
         <StatusCard color="text-white" isRequesting={isRequesting} />
       </div>
+
       <div className="px-4 bg-white rounded-2xl space-y-4 pb-4 h-full">
-        <div className="text-gray-700 space-y-1 py-4">
-          {descriptionLines.length > 0 ? (
-            descriptionLines.map((line, idx) => <p key={idx}>{line}</p>)
+        <div className="text-gray-700 py-4 space-y-4">
+          {paragraphs.length > 0 ? (
+            paragraphs.map((p, idx) => <p key={idx} className="leading-relaxed">{p}</p>)
           ) : (
             <p className="font-semibold text-xl text-gray-400">
               No description available.
@@ -88,10 +74,8 @@ const DescriptionPreview: React.FC<DescriptionPreviewProps> = ({
         </div>
 
         {columns.length > 0 && (
-          <div className="">
-            <h3 className="text-md font-semibold text-gray-800 mb-2">
-              Columns
-            </h3>
+          <div>
+            <h3 className="text-md font-semibold text-gray-800 mb-2">Columns</h3>
             <ul className="grid grid-cols-4 gap-2">
               {columns.map((col) => (
                 <li

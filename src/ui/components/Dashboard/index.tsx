@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { signOut } from "firebase/auth";
 import { Database } from "lucide-react";
 import { auth } from "../../firebase";
@@ -7,7 +7,7 @@ import VpnPopup from "../VpnPopup";
 import CredPopup from "../CredPopup-notused";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
-import { SqlLab } from "../Dashboard/DashboardTabs/SqlLab/index";
+import { AsanaSqlLab } from "../Dashboard/DashboardTabs/SqlLab/AsanaSqlLab";
 import { ProfilePanel } from "../Dashboard/DashboardTabs/ProfilePanel";
 import type {
   DashboardProps,
@@ -26,15 +26,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, setUser }) => {
   const [loading, setLoading] = useState(false);
   const [showVpn, setShowVpn] = useState(false);
   const [isRequesting, setIsRequesting] = useState(false);
-  const [showVpnInfo] = useState<VpnInfo>({
-    title: "",
-    text: "",
-  });
+  const [showVpnInfo] = useState<VpnInfo>({ title: "", text: "" });
   const [credential, setCredential] = useState<CrendentialInfo>({
     visible: false,
     username: "",
     password: "",
   });
+
+  const [projects, setProjects] = useState<{ gid: string; name: string }[]>([]);
+  const [selectedProject, setSelectedProject] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        const res = await window.electron?.getAsanaProjects();
+        if (res?.success && res.projects) {
+          setProjects(res.projects);
+        }
+      } catch (err) {
+        console.error("Failed to fetch projects:", err);
+      }
+    };
+    fetchProjects();
+  }, []);
 
   const handleLogout = async () => {
     setLoading(true);
@@ -74,10 +88,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, setUser }) => {
     switch (activeTab) {
       case "sql":
         return (
-          <SqlLab
+          <AsanaSqlLab
             isRequesting={isRequesting}
             setIsRequesting={setIsRequesting}
             onCredentials={handleCredentials}
+            selectedProject={selectedProject} // 🔥 send gid here
           />
         );
       case "profile":
@@ -94,6 +109,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, setUser }) => {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         tabNames={tabNames}
+        projects={projects}
+        selectedProject={selectedProject} // 🔥 new
+        setSelectedProject={setSelectedProject} // 🔥 new
         onLogout={handleLogout}
       />
 

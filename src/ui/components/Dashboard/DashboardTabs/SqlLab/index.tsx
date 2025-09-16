@@ -20,6 +20,7 @@ interface SqlLabProps {
 
 export const SqlLab: React.FC<SqlLabProps> = memo(
   ({ isRequesting, setIsRequesting, onCredentials }) => {
+    
     const [activeTabRight, setActiveTabRight] = useState("description");
     const [tableData, setTableData] = useState<any[]>([]);
     // const [dbName, setDbName] = useState("No Database");
