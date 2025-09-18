@@ -68,7 +68,7 @@ declare global {
       }>;
 
       // 🔹 Asana tasks
-      getAsanaTasks: (projectGid: string) => Promise<{
+      getAsanaTasks: (projectGid: string, role: string) => Promise<{
         success: boolean;
         sections?: Section[];
         error?: string;

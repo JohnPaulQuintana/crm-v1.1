@@ -18,6 +18,7 @@ import type {
 import https from "https";
 import { getSupersetCredentials, getSupersetCredential } from "./auth.js";
 
+
 // ==================================================
 // Paths & Helpers
 // ==================================================
@@ -100,6 +101,8 @@ const asanaAxios = axios.create({
 const asanaCache = new Map<string, any>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes (adjust as needed)
 
+let currentRole: string | null = null;
+
 async function asanaGet(endpoint: string, force = false) {
   const now = Date.now();
   const cached = asanaCache.get(endpoint);
@@ -119,7 +122,6 @@ async function asanaGet(endpoint: string, force = false) {
   return payload; // <-- FIX: returning only the useful array
 }
 
-
 // ==================================================
 // Cache Cleanup Job
 // ==================================================
@@ -135,7 +137,9 @@ function cleanupAsanaCache() {
   }
 
   if (removed > 0) {
-    console.log(`🧹 Cache cleanup completed: removed ${removed} expired entries`);
+    console.log(
+      `🧹 Cache cleanup completed: removed ${removed} expired entries`
+    );
   }
 }
 
@@ -242,12 +246,38 @@ async function fetchTaskDetails(taskGid: string) {
   return { ...task, identity, latest_sql, inputs };
 }
 
+function clearAsanaCache() {
+  asanaCache.clear();
+  console.log("Asana cache cleared due to role change");
+}
+
 // ---------- Fetch section tasks (Concurrent) ----------
-async function fetchSectionTasks(sectionGid: string) {
+async function fetchSectionTasks(sectionGid: string, role: string) {
+  // Detect role change and clear cache
+  if (currentRole !== role) {
+    clearAsanaCache();
+    currentRole = role;
+  }
+  
   const tasks = await asanaGet(`/sections/${sectionGid}/tasks`);
 
   // Filter first to reduce network calls
-  const filteredTasks = tasks.filter((t: any) => t.name.includes("!crm"));
+  const normalizedRole = role.toLowerCase();
+
+  let filteredTasks;
+  if (normalizedRole === "analysis") {
+    filteredTasks = tasks.filter((t: any) =>
+      t.name.toLowerCase().includes("!crm !analysis")
+    );
+  } else if (normalizedRole === "bonus") {
+    filteredTasks = tasks.filter((t: any) =>
+      t.name.toLowerCase().includes("!crm !bonus")
+    );
+  } else {
+    filteredTasks = tasks.filter((t: any) =>
+      t.name.toLowerCase().includes("!crm")
+    );
+  }
 
   // Fetch details concurrently (limit concurrency if Asana rate-limits)
   const enriched = await Promise.all(
@@ -261,7 +291,7 @@ async function fetchSectionTasks(sectionGid: string) {
 }
 
 // ---------- Fetch project structure (Concurrent) ----------
-async function fetchProjectStructure(projectGid: string) {
+async function fetchProjectStructure(projectGid: string, role: string) {
   try {
     const sections = await asanaGet(`/projects/${projectGid}/sections`);
     if (sections.length === 0) return [];
@@ -269,7 +299,7 @@ async function fetchProjectStructure(projectGid: string) {
     // Concurrent fetch of section tasks
     const sectionResults = await Promise.all(
       sections.map(async (section: any) => {
-        const tasks = await fetchSectionTasks(section.gid);
+        const tasks = await fetchSectionTasks(section.gid, role);
         if (!tasks.length) return null;
         return {
           section_name: section.name,
@@ -773,14 +803,17 @@ export function registerSqlHandlers(ipcMain: IpcMain) {
   //     }
   //   });
   // ---------- Fetch From Asana ----------
-  ipcMain.handle("sql:getFromAsana", async (_event, projectGid: string) => {
-    try {
-      const data = await fetchProjectStructure(projectGid);
-      return { success: true, sections: data };
-    } catch (err: any) {
-      return { success: false, error: err.message };
+  ipcMain.handle(
+    "sql:getFromAsana",
+    async (_event, projectGid: string, role: string) => {
+      try {
+        const data = await fetchProjectStructure(projectGid, role);
+        return { success: true, sections: data };
+      } catch (err: any) {
+        return { success: false, error: err.message };
+      }
     }
-  });
+  );
 
   // ---------- Projects ----------
   ipcMain.handle("sql:getProjects", async () => {

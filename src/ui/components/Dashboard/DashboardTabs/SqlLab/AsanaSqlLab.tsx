@@ -20,6 +20,7 @@ interface AsanaApiResponse {
 }
 
 interface AsanaSqlLabProps {
+  user: any;
   isRequesting: boolean;
   setIsRequesting: (arg: boolean) => void;
   onCredentials: () => void;
@@ -27,6 +28,7 @@ interface AsanaSqlLabProps {
 }
 
 export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
+  user,
   isRequesting,
   setIsRequesting,
   onCredentials,
@@ -62,7 +64,8 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
       }
 
       try {
-        const res = (await window.electron?.getAsanaTasks(selectedProject)) ?? { success: false, data: [], sections: [] } as AsanaApiResponse;
+        console.log(user)
+        const res = (await window.electron?.getAsanaTasks(selectedProject, user.role)) ?? { success: false, data: [], sections: [] } as AsanaApiResponse;
 
         if (res?.success && res.sections) {
           setAsanaSections(res.sections);

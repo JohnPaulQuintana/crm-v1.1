@@ -89,6 +89,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, setUser }) => {
       case "sql":
         return (
           <AsanaSqlLab
+            user={user}
             isRequesting={isRequesting}
             setIsRequesting={setIsRequesting}
             onCredentials={handleCredentials}
@@ -110,8 +111,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, setUser }) => {
         setActiveTab={setActiveTab}
         tabNames={tabNames}
         projects={projects}
-        selectedProject={selectedProject} // 🔥 new
-        setSelectedProject={setSelectedProject} // 🔥 new
+        selectedProject={selectedProject} // new
+        setSelectedProject={setSelectedProject} // new
         onLogout={handleLogout}
       />
 
