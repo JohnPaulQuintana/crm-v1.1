@@ -211,14 +211,17 @@ function parseAsanaSqlComment(commentText: string) {
 
 // new patched for timezone
 function classifyInputFields(editable: any, supported: any) {
+  console.log(supported);
+  
   return Object.entries(editable).map(([name, value]) => {
+    // Handle date fields
     if (/date/i.test(name)) {
-      let type = "date";
+      let type: "date" | "datetime" = "date";
 
       if (typeof value === "string") {
-        console.log("-------------------------------------------------")
-        console.log(value)
-        // Match both ISO (with T) and SQL-like (with space) date-time formats
+        console.log("-------------------------------------------------");
+        console.log(value);
+        // Match ISO or SQL-like date-time formats
         if (/\d{4}-\d{2}-\d{2}[T\s]\d{2}-\d{2}(-\d{2})?/.test(value)) {
           type = "datetime";
         }
@@ -227,12 +230,16 @@ function classifyInputFields(editable: any, supported: any) {
       return { name, default: value, type };
     }
 
-    if (supported[name])
+    // Handle supported options
+    if (supported[name] && supported[name].length > 1) {
       return { name, default: value, type: "select", options: supported[name] };
+    }
 
+    // Fallback to text if no supported options or only 1
     return { name, default: value, type: "text" };
   });
 }
+
 
 
 // ---------- Fetch latest SQL comment ----------
@@ -531,7 +538,7 @@ export function registerSqlHandlers(ipcMain: IpcMain) {
               if (response.status() === 200) {
                 if (body.error) reject(new Error(`Query Error: ${body.error}`));
                 else resolve(body);
-              } else if (response.status() === 403) {
+              } else if (response.status() === 403 || response.status() === 500) {
                 // Return structured error instead of stringified JSON
                 reject({ type: "forbidden", body });
               } else {

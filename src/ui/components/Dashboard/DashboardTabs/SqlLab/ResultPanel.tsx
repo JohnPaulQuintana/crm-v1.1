@@ -4,6 +4,7 @@ import {
   ChevronDown,
   FileSpreadsheet,
   FileText,
+  Table 
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { exportToCSV, exportToExcel } from "../../../utils/exportUtils";
@@ -55,8 +56,8 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
       <div className="flex items-center justify-between bg-gradient-to-r from-green-500 via-green-600 to-green-700 p-2">
         <div className="grid grid-cols-2 w-full items-center justify-between pe-2">
           <div className="flex items-start gap-3">
-            <h1 className="text-base text-white">
-              Total Rows:{" "}
+            <h1 className="text-lg font-semibold text-white uppercase flex items-center gap-2">
+              <Table  className="w-5 h-5" /> Total Rows:{" "}
               <span
                 className="text-white"
                 // className={`${

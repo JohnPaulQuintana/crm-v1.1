@@ -77,6 +77,11 @@ export interface Identity {
 }
 
 export interface Task {
+  assignee: {
+    gid: string | null;
+    name: string | null;
+    resource_type: string | null;
+  };
   gid: string;
   name: string;
   notes: string;
@@ -112,6 +117,13 @@ export interface ExecutionResult {
   type?: string;
 }
 
+// Define a type for the assignee
+export interface Assignee {
+  gid: string;
+  name: string;
+  resource_type: string;
+  script_author: string;
+}
 // export interface InputField {
 //   name: string;
 //   default: string;

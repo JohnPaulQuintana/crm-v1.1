@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import Select from "react-select";
 import { AsanaRightPanel } from "./AsanaRightPanel";
 import type {
   Section,
@@ -6,6 +7,7 @@ import type {
   InputField,
   VpnInfo,
   Description,
+  Assignee,
 } from "../../../types";
 import {
   handleExecutionError,
@@ -13,11 +15,10 @@ import {
 } from "../../../utils/errorHandlers";
 import { DateTimePicker } from "./DateTimePicker";
 
-// Define the expected shape of the API response
 interface AsanaApiResponse {
   success: boolean;
-  data: any[]; // Assuming it's an array of tasks/sections or data objects
-  sections?: Section[]; // Optional if sections are returned
+  data: any[];
+  sections?: Section[];
 }
 
 interface AsanaSqlLabProps {
@@ -25,7 +26,7 @@ interface AsanaSqlLabProps {
   isRequesting: boolean;
   setIsRequesting: (arg: boolean) => void;
   onCredentials: () => void;
-  selectedProject: string | null; // 🔥 add this
+  selectedProject: string | null;
 }
 
 export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
@@ -40,7 +41,7 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
   const [asanaInputValues, setAsanaInputValues] = useState<
     Record<string, string>
   >({});
-  const [tableData, setTableData] = useState<any[]>([]); // Ensure `any[]` is suitable or replace with a more specific type
+  const [tableData, setTableData] = useState<any[]>([]);
   const [activeTabRight, setActiveTabRight] = useState("description");
   const [currentPage, setCurrentPage] = useState(1);
   const [showVpnInfo, setShowVpnInfo] = useState<VpnInfo>({
@@ -51,67 +52,89 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
     columns: [],
     description: "",
   });
+  const [taskInfo, setTaskInfo] = useState<Assignee | null>(null);
   const [isFetchingAsana, setIsFetchingAsana] = useState(true);
 
   const pageSize = 20;
   const totalPages = Math.ceil(tableData.length / pageSize);
 
-  // -------------------------------
-  // Fetch Asana tasks automatically
-  // -------------------------------
+  const taskOptions = asanaSections.flatMap((sec) =>
+    sec.tasks.map((task) => ({
+      value: task.gid,
+      label: `${task.name}`,
+      task,
+    }))
+  );
+
   useEffect(() => {
     const fetchTasks = async () => {
-      setIsFetchingAsana(true); // start loading
-
+      setIsFetchingAsana(true);
       if (!selectedProject) {
         setAsanaSections([]);
         setSelectedTask(null);
-        setAsanaInputValues({}); // Reset input values
-        setScriptDescription({ columns: [], description: "" }); // Reset description
-        setIsFetchingAsana(false); // stop loading
+        setAsanaInputValues({});
+        setTaskInfo({
+          gid: "",
+          name: "",
+          resource_type: "",
+          script_author: "",
+        });
+        setScriptDescription({ columns: [], description: "" });
+        setIsFetchingAsana(false);
         return;
       }
 
       try {
-        console.log(user);
         const res =
           (await window.electron?.getAsanaTasks(selectedProject, user.role)) ??
           ({ success: false, data: [], sections: [] } as AsanaApiResponse);
 
         if (res?.success && res.sections) {
           setAsanaSections(res.sections);
-
-          // If no tasks in the first section, reset task selection
           const firstTask = res.sections[0]?.tasks[0] || null;
-          if (firstTask) {
-            handleSelectTask(firstTask);
-          } else {
-            // Reset task and related inputs if no tasks
+          if (firstTask) handleSelectTask(firstTask);
+          else {
             setSelectedTask(null);
             setAsanaInputValues({});
             setScriptDescription({ columns: [], description: "" });
+            setTaskInfo({
+              gid: "",
+              name: "",
+              resource_type: "",
+              script_author: "",
+            });
           }
         } else {
           setAsanaSections([]);
-          // Reset task and related inputs if no sections
           setSelectedTask(null);
           setAsanaInputValues({});
           setScriptDescription({ columns: [], description: "" });
+          setTaskInfo({
+            gid: "",
+            name: "",
+            resource_type: "",
+            script_author: "",
+          });
         }
       } catch (err) {
         console.error("Failed to fetch Asana tasks:", err);
         setAsanaSections([]);
-        // Reset task and related inputs on error
         setSelectedTask(null);
         setAsanaInputValues({});
         setScriptDescription({ columns: [], description: "" });
+        setTaskInfo({
+          gid: "",
+          name: "",
+          resource_type: "",
+          script_author: "",
+        });
       } finally {
         setIsFetchingAsana(false);
       }
     };
 
     fetchTasks();
-  }, [selectedProject]); // Re-run fetch if selectedProject changes
+  }, [selectedProject]);
 
   const handleSelectTask = useCallback(
     (task: Task & { inputs?: InputField[] }) => {
@@ -125,6 +148,13 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
         setAsanaInputValues(initialValues);
       }
 
+      setTaskInfo({
+        gid: task.assignee?.gid || "",
+        name: task.assignee?.name || "",
+        resource_type: task.assignee?.resource_type || "",
+        script_author: task.latest_sql?.created_by || "",
+      });
+
       setScriptDescription({
         columns: Object.keys(
           task.latest_sql?.parsed_sql.editable_contents || {}
@@ -137,45 +167,28 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
     []
   );
 
-  // const handleInputChange = useCallback((name: string, value: string) => {
-  //   setAsanaInputValues((prev) => ({ ...prev, [name]: value }));
-  // }, []);
   type InputType = "date" | "datetime" | "select";
   const handleInputChange = useCallback(
     (name: string, value: string, type: InputType) => {
       let formattedValue = value;
-
       if (type === "datetime" && formattedValue) {
-        // Convert "YYYY-MM-DDTHH:MM" → "YYYY-MM-DD HH:MM:SS"
         formattedValue = formattedValue.replace("T", " ");
-        if (formattedValue.length === 16) formattedValue += ":00"; // add seconds if missing
+        if (formattedValue.length === 16) formattedValue += ":00";
       }
-
-      setAsanaInputValues((prev) => ({
-        ...prev,
-        [name]: formattedValue,
-      }));
+      setAsanaInputValues((prev) => ({ ...prev, [name]: formattedValue }));
     },
     []
   );
 
   const normalizeDateTime = (value: string) => {
     if (!value) return "";
-
-    // Split date and time
     const [datePart, timePart] = value.split(" ");
-    if (!timePart) return datePart; // for date-only
-
-    // Replace any dashes in time with colons
+    if (!timePart) return datePart;
     const normalizedTime = timePart.replace(/-/g, ":");
-
-    // Add seconds if missing
     const parts = normalizedTime.split(":");
     while (parts.length < 3) parts.push("00");
-    console.log(`${datePart} ${parts.slice(0, 3).join(":")}`)
     return `${datePart} ${parts.slice(0, 3).join(":")}`;
   };
-
 
   const handleExecuteTask = useCallback(async () => {
     if (!selectedTask?.latest_sql) return;
@@ -183,27 +196,24 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
     let sqlContent = selectedTask.latest_sql.parsed_sql.template_script;
     const placeholders =
       selectedTask.latest_sql.parsed_sql.editable_contents || {};
+
     Object.entries(placeholders).forEach(([key, defaultValue]) => {
       let value = asanaInputValues[key] ?? defaultValue;
-      console.log("-----------------------------------------")
-      console.log(key, value)
-      
-
-      // Check if the value is a datetime (contains a space and numbers after it)
-      if (/\d{2}-\d{2}-\d{2}$/.test(value) || /\d{2}:\d{2}/.test(value) || value.includes("T")) {
-        console.log(normalizeDateTime(value))
-        value = normalizeDateTime(value)
+      if (
+        /\d{2}-\d{2}-\d{2}$/.test(value) ||
+        /\d{2}:\d{2}/.test(value) ||
+        value.includes("T")
+      ) {
+        value = normalizeDateTime(value);
       }
-      console.log("-----------------------------------------")
       sqlContent = sqlContent.replaceAll(`{{${key}}}`, value);
     });
 
     setIsRequesting(true);
-    setTableData([]); // Clear table data before making a request
+    setTableData([]);
     setCurrentPage(1);
     setShowVpnInfo({ title: "", text: "" });
 
-    console.log(sqlContent); // For debugging
     try {
       const res = await window.electron?.saveFileContent(
         selectedTask.identity.brand || "",
@@ -213,10 +223,8 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
 
       setIsRequesting(false);
       setActiveTabRight("result");
-      console.log(res);
-      if (res?.success) {
-        setTableData(res.data || []);
-      } else {
+      if (res?.success) setTableData(res.data || []);
+      else {
         const vpnInfo = handleExecutionError(res as ExecutionResult).vpnInfo;
         console.log(vpnInfo);
         setShowVpnInfo({
@@ -231,9 +239,6 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
     }
   }, [selectedTask, asanaInputValues, setIsRequesting]);
 
-  // -------------------------------
-  // Modern green themed loading
-  // -------------------------------
   if (isFetchingAsana) {
     return (
       <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center">
@@ -249,99 +254,165 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
 
   return (
     <div className="h-[calc(100vh-4rem)] grid grid-cols-4 gap-1 bg-gray-50 p-2">
-      {/* Left panel: Asana task selector & inputs */}
       <div className="col-span-1 border-r pr-2">
         <label className="block font-medium mb-2 text-green-700">
           Asana Tasks
         </label>
-        <select
-          value={selectedTask?.gid || ""}
-          onChange={(e) => {
-            const task = asanaSections
-              .flatMap((sec) => sec.tasks)
-              .find((t) => t.gid === e.target.value);
-            if (task) handleSelectTask(task);
-          }}
-          className="border border-green-300 rounded-lg p-2 w-full mb-4 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-500"
-          disabled={isFetchingAsana}
-        >
-          <option value="">Select a task</option>
-          {asanaSections.flatMap((sec) =>
-            sec.tasks.map((task) => (
-              <option key={task.gid} value={task.gid}>
-                {task.name}
-              </option>
-            ))
-          )}
-        </select>
 
-        {/* Render inputs only if a valid task is selected */}
-        {selectedTask &&
-          selectedTask.inputs &&
-          selectedTask.inputs.length > 0 && (
-            <>
-              {selectedTask.inputs.map((input) => (
-                <div key={input.name} className="mb-4">
-                  <label className="block text-sm font-semibold text-green-700 mb-1">
-                    {input.name
-                      .replace(/_/g, " ")
-                      .replace(/\b\w/g, (c) => c.toUpperCase())}
-                  </label>
-                  {input.type === "select" ? (
-                    <select
-                      value={asanaInputValues[input.name] || ""}
-                      onChange={(e) =>
-                        handleInputChange(
-                          input.name,
-                          e.target.value,
-                          input.type as InputType
-                        )
-                      }
-                      className="border border-green-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-500"
-                    >
-                      {input.options?.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  ) : input.type === "date" || input.type === "datetime" ? (
-                    <DateTimePicker
-                      type={input.type}
-                      // value={asanaInputValues[input.name] || ""}
-                      value={normalizeDateTime(asanaInputValues[input.name] || "")}
-                      onChange={(val) =>
-                        handleInputChange(input.name, val, input.type as InputType)
-                      }
-                    />
-                  ) : (
-                    <input
-                      type="text"
-                      value={asanaInputValues[input.name] || ""}
-                      onChange={(e) =>
-                        handleInputChange(
-                          input.name,
-                          e.target.value,
-                          "text" as any
-                        )
-                      }
-                      className="border border-green-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-500"
-                    />
-                  )}
-                </div>
-              ))}
-              <button
-                onClick={handleExecuteTask}
-                disabled={isRequesting || !selectedTask}
-                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg w-full shadow"
-              >
-                Run Task
-              </button>
-            </>
-          )}
+        {/* Modern Task Select */}
+        <Select
+          value={
+            selectedTask
+              ? {
+                  value: selectedTask.gid,
+                  label: selectedTask.name,
+                  task: selectedTask,
+                }
+              : null
+          }
+          onChange={(opt) => {
+            if (opt?.task) {
+              handleSelectTask(opt.task); // only call if task exists
+            } else {
+              // Handle clearing the selection
+              setSelectedTask(null);
+              setAsanaInputValues({});
+              setScriptDescription({ columns: [], description: "" });
+              setTaskInfo({
+                gid: "",
+                name: "",
+                resource_type: "",
+                script_author: "",
+              });
+            }
+          }}
+          options={taskOptions}
+          isClearable
+          isSearchable
+          isDisabled={isFetchingAsana}
+          placeholder="Select a task"
+          styles={{
+            control: (base) => ({
+              ...base,
+              borderColor: "#34D399",
+              boxShadow: "none",
+              "&:hover": { borderColor: "#10B981" },
+            }),
+            option: (base, state) => ({
+              ...base,
+              backgroundColor: state.isSelected
+                ? "#10B981"
+                : state.isFocused
+                ? "#D1FAE5"
+                : "white",
+              color: state.isSelected ? "white" : "#065F46",
+            }),
+            placeholder: (base) => ({ ...base, color: "#065F46" }),
+          }}
+        />
+
+        {/* Input Fields */}
+        <div className="mt-4 overflow-y-auto max-h-[calc(100vh-4rem-150px)]">
+          {selectedTask?.inputs?.map((input) => (
+            <div key={input.name} className="mb-4">
+              <label className="block text-sm font-semibold text-green-700 mb-1">
+                {input.name
+                  .replace(/_/g, " ")
+                  .replace(/\b\w/g, (c) => c.toUpperCase())}
+              </label>
+
+              {input.type === "select" ? (
+                <Select
+                  value={
+                    input.options?.find(
+                      (opt) => opt === asanaInputValues[input.name]
+                    )
+                      ? {
+                          value: asanaInputValues[input.name],
+                          label: asanaInputValues[input.name],
+                        }
+                      : null
+                  }
+                  onChange={(opt) =>
+                    handleInputChange(input.name, opt?.value || "", "select")
+                  }
+                  options={input.options?.map((opt) => ({
+                    value: opt,
+                    label: opt,
+                  }))}
+                  isClearable
+                  styles={{
+                    control: (base) => ({
+                      ...base,
+                      borderColor: "#34D399",
+                      boxShadow: "none",
+                      "&:hover": { borderColor: "#10B981" },
+                    }),
+                    option: (base, state) => ({
+                      ...base,
+                      backgroundColor: state.isSelected
+                        ? "#10B981"
+                        : state.isFocused
+                        ? "#D1FAE5"
+                        : "white",
+                      color: state.isSelected ? "white" : "#065F46",
+                    }),
+                  }}
+                />
+              ) : input.type === "date" || input.type === "datetime" ? (
+                <DateTimePicker
+                  type={input.type}
+                  value={normalizeDateTime(asanaInputValues[input.name] || "")}
+                  onChange={(val) =>
+                    handleInputChange(input.name, val, input.type as InputType)
+                  }
+                />
+              ) : (
+                <textarea
+                  value={asanaInputValues[input.name] || ""}
+                  onChange={(e) => {
+                    handleInputChange(
+                      input.name,
+                      e.target.value,
+                      "text" as any
+                    );
+
+                    // Auto-resize height
+                    const target = e.target;
+                    target.style.height = "auto"; // reset
+                    target.style.height = target.scrollHeight + "px"; // adjust
+                  }}
+                  className="border border-green-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-500 resize-none overflow-hidden"
+                />
+              )}
+            </div>
+          ))}
+        </div>
+
+        {selectedTask && (
+          <button
+            onClick={handleExecuteTask}
+            disabled={
+              isRequesting ||
+              !selectedTask ||
+              Object.values(asanaInputValues).some(
+                (val) => !val || val.trim() === ""
+              )
+            }
+            className={`px-4 py-2 rounded-lg w-full shadow text-white ${
+              isRequesting ||
+              Object.values(asanaInputValues).some(
+                (val) => !val || val.trim() === ""
+              )
+                ? "bg-green-300 cursor-not-allowed"
+                : "bg-green-500 hover:bg-green-600"
+            }`}
+          >
+            Run Task
+          </button>
+        )}
       </div>
 
-      {/* Right panel: results */}
       <AsanaRightPanel
         activeTabRight={activeTabRight}
         setActiveTabRight={setActiveTabRight}
@@ -354,6 +425,7 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
         onCredentials={onCredentials}
         showSupersetError={showVpnInfo}
         scriptDescription={scriptDescription}
+        taskInfo={taskInfo}
       />
     </div>
   );

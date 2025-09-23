@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import flatpickr from "flatpickr";
 import "flatpickr/dist/flatpickr.min.css";
+import { Calendar } from "lucide-react";
 
 type InputType = "date" | "datetime";
 
@@ -14,10 +15,9 @@ export const DateTimePicker: React.FC<Props> = ({ type, value, onChange }) => {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!inputRef.current) return; // Make sure ref is not null
+    if (!inputRef.current) return;
 
-    // Cast inputRef.current to 'HTMLElement' to satisfy Flatpickr types
-    const fp = flatpickr(inputRef.current as HTMLElement, {
+    const fp = flatpickr(inputRef.current, {
       enableTime: type === "datetime",
       time_24hr: true,
       enableSeconds: type === "datetime",
@@ -26,14 +26,18 @@ export const DateTimePicker: React.FC<Props> = ({ type, value, onChange }) => {
       onChange: (_, dateStr) => onChange(dateStr),
     });
 
-    return () => fp.destroy(); // cleanup on unmount
+    return () => fp.destroy();
   }, [type, value, onChange]);
 
   return (
-    <input
-      ref={inputRef}
-      type="text"
-      className="border border-green-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-500"
-    />
+    <div className="relative w-full">
+      <input
+        ref={inputRef}
+        type="text"
+        className="flatpickr-input border border-green-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-500 pr-10"
+        placeholder={type === "datetime" ? "Select date & time" : "Select date"}
+      />
+      <Calendar className="w-5 h-5 text-green-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+    </div>
   );
 };

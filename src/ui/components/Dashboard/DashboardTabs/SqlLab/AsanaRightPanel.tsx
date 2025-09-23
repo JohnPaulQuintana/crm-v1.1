@@ -16,6 +16,7 @@ interface AsanaRightPanelProps {
   onCredentials: () => void;
   showSupersetError: VpnInfo;
   scriptDescription: Description;
+  taskInfo: any
 }
 
 export const AsanaRightPanel: React.FC<AsanaRightPanelProps> = ({
@@ -30,10 +31,11 @@ export const AsanaRightPanel: React.FC<AsanaRightPanelProps> = ({
 //   onCredentials,
   showSupersetError,
   scriptDescription,
+  taskInfo
 }) => {
   return (
     <div className="col-span-3 flex flex-col bg-white rounded-lg shadow-md font-mono text-sm">
-      <div className="flex-1 max-h-[80vh] overflow-y-auto p-4">
+      <div className="flex-1 max-h-[80vh] overflow-y-auto">
         {activeTabRight === "result" && (
           <ResultPanel
             activeTabRight={activeTabRight}
@@ -55,6 +57,7 @@ export const AsanaRightPanel: React.FC<AsanaRightPanelProps> = ({
             isRequesting={isRequesting}
             description={scriptDescription.description}
             columns={scriptDescription.columns}
+            taskInfo={taskInfo}
           />
         )}
 
