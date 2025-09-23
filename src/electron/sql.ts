@@ -200,14 +200,40 @@ function parseAsanaSqlComment(commentText: string) {
   return data.template_script ? data : null;
 }
 
+// function classifyInputFields(editable: any, supported: any) {
+//   return Object.entries(editable).map(([name, value]) => {
+//     if (/date/i.test(name)) return { name, default: value, type: "date" };
+//     if (supported[name])
+//       return { name, default: value, type: "select", options: supported[name] };
+//     return { name, default: value, type: "text" };
+//   });
+// }
+
+// new patched for timezone
 function classifyInputFields(editable: any, supported: any) {
   return Object.entries(editable).map(([name, value]) => {
-    if (/date/i.test(name)) return { name, default: value, type: "date" };
+    if (/date/i.test(name)) {
+      let type = "date";
+
+      if (typeof value === "string") {
+        console.log("-------------------------------------------------")
+        console.log(value)
+        // Match both ISO (with T) and SQL-like (with space) date-time formats
+        if (/\d{4}-\d{2}-\d{2}[T\s]\d{2}-\d{2}(-\d{2})?/.test(value)) {
+          type = "datetime";
+        }
+      }
+
+      return { name, default: value, type };
+    }
+
     if (supported[name])
       return { name, default: value, type: "select", options: supported[name] };
+
     return { name, default: value, type: "text" };
   });
 }
+
 
 // ---------- Fetch latest SQL comment ----------
 async function fetchLatestSqlComment(taskGid: string) {

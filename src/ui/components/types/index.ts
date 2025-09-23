@@ -54,7 +54,7 @@ export interface TabConfig {
 export interface InputField {
   name: string;
   default: string;
-  type: "text" | "date" | "select";
+  type: "text" | "date" | "datetime" | "select";
   options?: string[];
 }
 
@@ -112,9 +112,9 @@ export interface ExecutionResult {
   type?: string;
 }
 
-export interface InputField {
-  name: string;
-  default: string;
-  type: "text" | "date" | "select";
-  options?: string[];
-}
+// export interface InputField {
+//   name: string;
+//   default: string;
+//   type: "text" | "date" | "datetime" | "select";
+//   options?: string[];
+// }

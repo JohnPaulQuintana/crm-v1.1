@@ -11,6 +11,7 @@ import {
   handleExecutionError,
   type ExecutionResult,
 } from "../../../utils/errorHandlers";
+import { DateTimePicker } from "./DateTimePicker";
 
 // Define the expected shape of the API response
 interface AsanaApiResponse {
@@ -32,16 +33,24 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
   isRequesting,
   setIsRequesting,
   onCredentials,
-  selectedProject
+  selectedProject,
 }) => {
   const [asanaSections, setAsanaSections] = useState<Section[]>([]);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [asanaInputValues, setAsanaInputValues] = useState<Record<string, string>>({});
+  const [asanaInputValues, setAsanaInputValues] = useState<
+    Record<string, string>
+  >({});
   const [tableData, setTableData] = useState<any[]>([]); // Ensure `any[]` is suitable or replace with a more specific type
   const [activeTabRight, setActiveTabRight] = useState("description");
   const [currentPage, setCurrentPage] = useState(1);
-  const [showVpnInfo, setShowVpnInfo] = useState<VpnInfo>({ title: "", text: "" });
-  const [scriptDescription, setScriptDescription] = useState<Description>({ columns: [], description: "" });
+  const [showVpnInfo, setShowVpnInfo] = useState<VpnInfo>({
+    title: "",
+    text: "",
+  });
+  const [scriptDescription, setScriptDescription] = useState<Description>({
+    columns: [],
+    description: "",
+  });
   const [isFetchingAsana, setIsFetchingAsana] = useState(true);
 
   const pageSize = 20;
@@ -64,8 +73,10 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
       }
 
       try {
-        console.log(user)
-        const res = (await window.electron?.getAsanaTasks(selectedProject, user.role)) ?? { success: false, data: [], sections: [] } as AsanaApiResponse;
+        console.log(user);
+        const res =
+          (await window.electron?.getAsanaTasks(selectedProject, user.role)) ??
+          ({ success: false, data: [], sections: [] } as AsanaApiResponse);
 
         if (res?.success && res.sections) {
           setAsanaSections(res.sections);
@@ -105,7 +116,7 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
   const handleSelectTask = useCallback(
     (task: Task & { inputs?: InputField[] }) => {
       setSelectedTask(task);
-
+      console.log(task);
       if (task.inputs) {
         const initialValues: Record<string, string> = {};
         task.inputs.forEach((input) => {
@@ -115,7 +126,9 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
       }
 
       setScriptDescription({
-        columns: Object.keys(task.latest_sql?.parsed_sql.editable_contents || {}),
+        columns: Object.keys(
+          task.latest_sql?.parsed_sql.editable_contents || {}
+        ),
         description: task.notes || "No description available",
       });
 
@@ -124,17 +137,64 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
     []
   );
 
-  const handleInputChange = useCallback((name: string, value: string) => {
-    setAsanaInputValues((prev) => ({ ...prev, [name]: value }));
-  }, []);
+  // const handleInputChange = useCallback((name: string, value: string) => {
+  //   setAsanaInputValues((prev) => ({ ...prev, [name]: value }));
+  // }, []);
+  type InputType = "date" | "datetime" | "select";
+  const handleInputChange = useCallback(
+    (name: string, value: string, type: InputType) => {
+      let formattedValue = value;
+
+      if (type === "datetime" && formattedValue) {
+        // Convert "YYYY-MM-DDTHH:MM" → "YYYY-MM-DD HH:MM:SS"
+        formattedValue = formattedValue.replace("T", " ");
+        if (formattedValue.length === 16) formattedValue += ":00"; // add seconds if missing
+      }
+
+      setAsanaInputValues((prev) => ({
+        ...prev,
+        [name]: formattedValue,
+      }));
+    },
+    []
+  );
+
+  const normalizeDateTime = (value: string) => {
+    if (!value) return "";
+
+    // Split date and time
+    const [datePart, timePart] = value.split(" ");
+    if (!timePart) return datePart; // for date-only
+
+    // Replace any dashes in time with colons
+    const normalizedTime = timePart.replace(/-/g, ":");
+
+    // Add seconds if missing
+    const parts = normalizedTime.split(":");
+    while (parts.length < 3) parts.push("00");
+    console.log(`${datePart} ${parts.slice(0, 3).join(":")}`)
+    return `${datePart} ${parts.slice(0, 3).join(":")}`;
+  };
+
 
   const handleExecuteTask = useCallback(async () => {
     if (!selectedTask?.latest_sql) return;
 
     let sqlContent = selectedTask.latest_sql.parsed_sql.template_script;
-    const placeholders = selectedTask.latest_sql.parsed_sql.editable_contents || {};
+    const placeholders =
+      selectedTask.latest_sql.parsed_sql.editable_contents || {};
     Object.entries(placeholders).forEach(([key, defaultValue]) => {
-      const value = asanaInputValues[key] ?? defaultValue;
+      let value = asanaInputValues[key] ?? defaultValue;
+      console.log("-----------------------------------------")
+      console.log(key, value)
+      
+
+      // Check if the value is a datetime (contains a space and numbers after it)
+      if (/\d{2}-\d{2}-\d{2}$/.test(value) || /\d{2}:\d{2}/.test(value) || value.includes("T")) {
+        console.log(normalizeDateTime(value))
+        value = normalizeDateTime(value)
+      }
+      console.log("-----------------------------------------")
       sqlContent = sqlContent.replaceAll(`{{${key}}}`, value);
     });
 
@@ -153,12 +213,12 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
 
       setIsRequesting(false);
       setActiveTabRight("result");
-      console.log(res)
+      console.log(res);
       if (res?.success) {
         setTableData(res.data || []);
       } else {
         const vpnInfo = handleExecutionError(res as ExecutionResult).vpnInfo;
-        console.log(vpnInfo)
+        console.log(vpnInfo);
         setShowVpnInfo({
           ...vpnInfo,
           text: typeof vpnInfo?.text === "string" ? vpnInfo.text : "Error",
@@ -191,7 +251,9 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
     <div className="h-[calc(100vh-4rem)] grid grid-cols-4 gap-1 bg-gray-50 p-2">
       {/* Left panel: Asana task selector & inputs */}
       <div className="col-span-1 border-r pr-2">
-        <label className="block font-medium mb-2 text-green-700">Asana Tasks</label>
+        <label className="block font-medium mb-2 text-green-700">
+          Asana Tasks
+        </label>
         <select
           value={selectedTask?.gid || ""}
           onChange={(e) => {
@@ -214,44 +276,69 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
         </select>
 
         {/* Render inputs only if a valid task is selected */}
-        {selectedTask && selectedTask.inputs && selectedTask.inputs.length > 0 && (
-          <>
-            {selectedTask.inputs.map((input) => (
-              <div key={input.name} className="mb-4">
-                <label className="block text-sm font-semibold text-green-700 mb-1">
-                  {input.name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                </label>
-                {input.type === "select" ? (
-                  <select
-                    value={asanaInputValues[input.name] || ""}
-                    onChange={(e) => handleInputChange(input.name, e.target.value)}
-                    className="border border-green-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-500"
-                  >
-                    {input.options?.map((opt) => (
-                      <option key={opt} value={opt}>
-                        {opt}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    type={input.type === "date" ? "date" : "text"}
-                    value={asanaInputValues[input.name] || ""}
-                    onChange={(e) => handleInputChange(input.name, e.target.value)}
-                    className="border border-green-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-500"
-                  />
-                )}
-              </div>
-            ))}
-            <button
-              onClick={handleExecuteTask}
-              disabled={isRequesting || !selectedTask}
-              className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg w-full shadow"
-            >
-              Run Task
-            </button>
-          </>
-        )}
+        {selectedTask &&
+          selectedTask.inputs &&
+          selectedTask.inputs.length > 0 && (
+            <>
+              {selectedTask.inputs.map((input) => (
+                <div key={input.name} className="mb-4">
+                  <label className="block text-sm font-semibold text-green-700 mb-1">
+                    {input.name
+                      .replace(/_/g, " ")
+                      .replace(/\b\w/g, (c) => c.toUpperCase())}
+                  </label>
+                  {input.type === "select" ? (
+                    <select
+                      value={asanaInputValues[input.name] || ""}
+                      onChange={(e) =>
+                        handleInputChange(
+                          input.name,
+                          e.target.value,
+                          input.type as InputType
+                        )
+                      }
+                      className="border border-green-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-500"
+                    >
+                      {input.options?.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  ) : input.type === "date" || input.type === "datetime" ? (
+                    <DateTimePicker
+                      type={input.type}
+                      // value={asanaInputValues[input.name] || ""}
+                      value={normalizeDateTime(asanaInputValues[input.name] || "")}
+                      onChange={(val) =>
+                        handleInputChange(input.name, val, input.type as InputType)
+                      }
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={asanaInputValues[input.name] || ""}
+                      onChange={(e) =>
+                        handleInputChange(
+                          input.name,
+                          e.target.value,
+                          "text" as any
+                        )
+                      }
+                      className="border border-green-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-500"
+                    />
+                  )}
+                </div>
+              ))}
+              <button
+                onClick={handleExecuteTask}
+                disabled={isRequesting || !selectedTask}
+                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg w-full shadow"
+              >
+                Run Task
+              </button>
+            </>
+          )}
       </div>
 
       {/* Right panel: results */}

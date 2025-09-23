@@ -17,17 +17,53 @@ const DescriptionPreview: React.FC<DescriptionPreviewProps> = ({
   description,
   columns = [],
 }) => {
-  // Simple parser: split by double line breaks to get paragraphs
-  const paragraphs = description
-    ? description.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean)
+  // Split by section titles (lines ending with ":")
+  const sections = description
+    ? description.split(/\n(?=\w.*?:)/g).map((sec) => sec.trim())
     : [];
+
+  const renderSection = (section: string, idx: number) => {
+    const [titleLine, ...bodyLines] = section.split("\n");
+    const title = titleLine.replace(/:$/, "").trim();
+
+    return (
+      <div key={idx} className="bg-gray-50 p-4 rounded-xl shadow-sm">
+        <h3 className="text-lg font-semibold text-green-700 mb-3">{title}</h3>
+        <div className="space-y-2">
+          {bodyLines.map((line, i) => {
+            // Key-value pair (e.g. "Start Date: 2025-09-14")
+            if (/^.+?:\s+.+/.test(line)) {
+              const [key, value] = line.split(/:\s+/, 2);
+              return (
+                <div
+                  key={i}
+                  className="grid grid-cols-3 bg-white px-3 py-2 rounded-md shadow-sm"
+                >
+                  <span className="font-medium text-gray-700">{key}</span>
+                  <span className="col-span-2 text-gray-600">{value}</span>
+                </div>
+              );
+            }
+            // List item (Bonus Titles, Codes, Rules)
+            if (/^[-•]/.test(line) || line.trim()) {
+              return (
+                <li key={i} className="text-gray-700 list-disc ml-6">
+                  {line.replace(/^[-•]\s*/, "")}
+                </li>
+              );
+            }
+            return null;
+          })}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="">
+      {/* Header */}
       <div className="grid grid-cols-2 items-center justify-between bg-gradient-to-r from-green-500 via-green-600 to-green-700 p-2">
-        <div className="flex items-center">
-          <h2 className="text-lg font-semibold text-white">Description</h2>
-        </div>
+        <h2 className="text-lg font-semibold text-white">Description</h2>
         <div className="flex items-center justify-end gap-2">
           <button
             className={`px-3 py-2 font-medium rounded-lg transition ${
@@ -54,18 +90,18 @@ const DescriptionPreview: React.FC<DescriptionPreviewProps> = ({
         </div>
       </div>
 
+      {/* Loader */}
       <div
-        className={`p-2 ${
-          isRequesting ? "flex" : "hidden"
-        } items-center justify-end bg-gradient-to-r from-green-200 via-green-400 to-green-600`}
+        className={`p-2 ${isRequesting ? "flex" : "hidden"} items-center justify-end bg-gradient-to-r from-green-200 via-green-400 to-green-600`}
       >
         <StatusCard color="text-white" isRequesting={isRequesting} />
       </div>
 
+      {/* Main Content */}
       <div className="px-4 bg-white rounded-2xl space-y-4 pb-4 h-full">
-        <div className="text-gray-700 py-4 space-y-4">
-          {paragraphs.length > 0 ? (
-            paragraphs.map((p, idx) => <p key={idx} className="leading-relaxed">{p}</p>)
+        <div className="text-gray-700 py-4 space-y-6">
+          {sections.length > 0 ? (
+            sections.map((s, idx) => renderSection(s, idx))
           ) : (
             <p className="font-semibold text-xl text-gray-400">
               No description available.
@@ -73,6 +109,7 @@ const DescriptionPreview: React.FC<DescriptionPreviewProps> = ({
           )}
         </div>
 
+        {/* Columns Section */}
         {columns.length > 0 && (
           <div>
             <h3 className="text-md font-semibold text-gray-800 mb-2">Columns</h3>

@@ -89,7 +89,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           className="w-full py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
           disabled={isRequesting}
         >
-          {isRequesting ? "Logging out..." : "Logout"}
+           Logout
         </button>
       </div>
     </aside>

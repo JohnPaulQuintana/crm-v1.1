@@ -1,0 +1,1 @@
+GH_TOKEN=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 npm run dist:publish:win
