@@ -19,7 +19,7 @@ interface SqlRightPanelProps {
   onCredentials: () => void;
   showSupersetError: { title: string; text: string };
   scriptDescription: { columns: string[]; description: string };
-  taskOwner: {gid: string, name:string, resource_type:string}
+  taskInfo: {gid: string, name:string, resource_type:string}
 }
 
 export const SqlRightPanel: React.FC<SqlRightPanelProps> = ({
@@ -37,7 +37,7 @@ export const SqlRightPanel: React.FC<SqlRightPanelProps> = ({
   // onCredentials,
   showSupersetError,
   scriptDescription,
-  taskOwner
+  taskInfo
 }) => {
   return (
     <div className="col-span-3 flex flex-col bg-white rounded-lg shadow-md font-mono text-sm">
@@ -66,7 +66,7 @@ export const SqlRightPanel: React.FC<SqlRightPanelProps> = ({
             isRequesting={isRequesting}
             description={scriptDescription.description}
             columns={scriptDescription.columns}
-            taskOwner={taskOwner}
+            taskInfo={taskInfo}
           />
         )}
       </div>

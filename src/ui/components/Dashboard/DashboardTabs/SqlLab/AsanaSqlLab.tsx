@@ -213,7 +213,8 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
     setTableData([]);
     setCurrentPage(1);
     setShowVpnInfo({ title: "", text: "" });
-
+    
+    console.log(sqlContent)
     try {
       const res = await window.electron?.saveFileContent(
         selectedTask.identity.brand || "",

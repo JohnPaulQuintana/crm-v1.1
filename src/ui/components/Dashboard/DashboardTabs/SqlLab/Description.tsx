@@ -117,8 +117,11 @@ const DescriptionPreview: React.FC<DescriptionPreviewProps> = ({
       <div className=" bg-white rounded-2xl p-4 space-y-6">
         {/* Task Owner */}
         {taskInfo?.name && (
-          <motion.div initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }} className="bg-green-50 p-4 rounded-xl shadow-sm">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="bg-green-50 p-4 rounded-xl shadow-sm"
+          >
             <div className="flex items-center gap-2 mb-1">
               <User className="w-4 h-4 text-green-600" />
               <h3 className="text-lg font-semibold text-green-700">
@@ -158,13 +161,17 @@ const DescriptionPreview: React.FC<DescriptionPreviewProps> = ({
                   key={col}
                   initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="flex items-center gap-2 bg-green-50 px-3 py-2 rounded-lg shadow-sm hover:shadow-md transition"
+                  className="bg-green-50 px-3 py-2 rounded-lg shadow-sm hover:shadow-md transition flex gap-2 items-start break-words"
                 >
-                  <Database className="w-4 h-4 text-green-500 shrink-0" />
-                  <span className="text-gray-700">{col}</span>
+                  <Database className="w-5 h-5 text-green-500 mb-2 flex-shrink-0" />
+                  <div className="w-full text-gray-700 whitespace-pre-wrap break-words max-h-[300px] overflow-auto">
+                    {col}
+                  </div>
                 </motion.li>
               ))}
             </ul>
+
+
           </div>
         )}
       </div>
