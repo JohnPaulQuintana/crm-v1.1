@@ -27,10 +27,12 @@ const DescriptionPreview: React.FC<DescriptionPreviewProps> = ({
 
   const renderSection = (section: string, idx: number) => {
     const [titleLine, ...bodyLines] = section.split("\n");
+    console.log(titleLine)
     const title = titleLine.replace(/:$/, "").trim();
     // console.log(taskOwner)
     return (
-      <motion.div
+      title && (
+        <motion.div
         key={idx}
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -68,6 +70,7 @@ const DescriptionPreview: React.FC<DescriptionPreviewProps> = ({
           })}
         </div>
       </motion.div>
+      )
     );
   };
 
@@ -127,7 +130,7 @@ const DescriptionPreview: React.FC<DescriptionPreviewProps> = ({
               <h3 className="text-lg font-semibold text-green-700">
                 Task Owner:
               </h3>
-              <p className="text-gray-700 text-lg">{taskInfo.name}</p>
+              <p className="text-gray-700 text-lg">{taskInfo.requestor}</p>
             </div>
             <div className="flex items-center gap-2">
               <User className="w-4 h-4 text-green-600" />

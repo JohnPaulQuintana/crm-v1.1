@@ -34,4 +34,8 @@ contextBridge.exposeInMainWorld("electron", {
     ipcRenderer.invoke("sql:getFromAsana", projectGid, role),
 
   getAsanaProjects: () => ipcRenderer.invoke("sql:getProjects"),
+
+  // 🔹 NEW: Superset CSV download
+  downloadCsv: (csvId: string) =>
+    ipcRenderer.invoke("superset:downloadCsv", csvId),
 });

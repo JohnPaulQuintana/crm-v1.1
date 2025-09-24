@@ -77,6 +77,7 @@ export interface Identity {
 }
 
 export interface Task {
+  csv_link: string;
   assignee: {
     gid: string | null;
     name: string | null;
@@ -88,6 +89,11 @@ export interface Task {
   identity: {
     brand?: string;
     currency?: string | null;
+    requestor?: string | null;
+  };
+  created_by?: {
+    gid: string;
+    name: string;
   };
   latest_sql?: {
     gid: string;
@@ -123,6 +129,7 @@ export interface Assignee {
   name: string;
   resource_type: string;
   script_author: string;
+  requestor: string
 }
 // export interface InputField {
 //   name: string;

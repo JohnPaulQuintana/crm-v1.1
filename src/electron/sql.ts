@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import axios from "axios";
-import type { IpcMain } from "electron";
+import { IpcMain, dialog } from "electron";
 import { chromium, Page, Browser, Locator } from "playwright-core";
 import { getWritableDir } from "./resources.js";
 import { isDev } from "./util.js";
@@ -17,7 +17,6 @@ import type {
 
 import https from "https";
 import { getSupersetCredentials, getSupersetCredential } from "./auth.js";
-
 
 // ==================================================
 // Paths & Helpers
@@ -155,9 +154,13 @@ async function fetchAllProjects() {
 function parseIdentity(description: string) {
   const brandMatch = description.match(/Brand\s*Type:\s*(\w+)/i);
   const currencyMatch = description.match(/Currency\s*Type:\s*(\w+)/i);
+  // ✅ Case-insensitive match for "Requestor:"
+  const requestorMatch = description.match(/requestor:\s*(.+)/i);
+
   return {
     brand: brandMatch ? brandMatch[1] : null,
     currency: currencyMatch ? currencyMatch[1] : null,
+    requestor: requestorMatch ? requestorMatch[1].trim() : null,
   };
 }
 
@@ -212,7 +215,7 @@ function parseAsanaSqlComment(commentText: string) {
 // new patched for timezone
 function classifyInputFields(editable: any, supported: any) {
   console.log(supported);
-  
+
   return Object.entries(editable).map(([name, value]) => {
     // Handle date fields
     if (/date/i.test(name)) {
@@ -240,8 +243,6 @@ function classifyInputFields(editable: any, supported: any) {
   });
 }
 
-
-
 // ---------- Fetch latest SQL comment ----------
 async function fetchLatestSqlComment(taskGid: string) {
   const stories = await asanaGet(`/tasks/${taskGid}/stories`);
@@ -267,7 +268,16 @@ async function fetchLatestSqlComment(taskGid: string) {
 
 // ---------- Fetch task details ----------
 async function fetchTaskDetails(taskGid: string) {
-  const task: any = await asanaGet(`/tasks/${taskGid}`);
+  const task: any = await asanaGet(
+    `/tasks/${taskGid}?opt_fields=name,created_by.name,created_by.gid,assignee.name,notes,custom_fields.name,custom_fields.enum_value,followers.name`
+  );
+  console.log(
+    "----------------------------------------------------------------"
+  );
+  console.log(task);
+  console.log(
+    "----------------------------------------------------------------"
+  );
   const identity = parseIdentity(task.notes || "");
   const latest_sql = await fetchLatestSqlComment(taskGid);
   const inputs = latest_sql
@@ -291,7 +301,7 @@ async function fetchSectionTasks(sectionGid: string, role: string) {
     clearAsanaCache();
     currentRole = role;
   }
-  
+
   const tasks = await asanaGet(`/sections/${sectionGid}/tasks`);
 
   // Filter first to reduce network calls
@@ -508,13 +518,16 @@ export function registerSqlHandlers(ipcMain: IpcMain) {
         try {
           await page.click("a.ant-dropdown-trigger");
           const limitOption = page
-            .locator('li.ant-dropdown-menu-item:has-text("1 000")')
+            .locator('li.ant-dropdown-menu-item:has-text("1 000 000")')
             .first();
           await limitOption.waitFor({ state: "visible", timeout: 5000 });
           await limitOption.click();
         } catch (err) {
           console.warn("Failed to set LIMIT dropdown:", (err as Error).message);
         }
+
+        // Small delay to give the UI time to apply the new selection
+        await page.waitForTimeout(3000); // 0.5s delay, adjust if needed
 
         // --- Run SQL ---
         const runButton = page.locator("button.superset-button.cta", {
@@ -538,7 +551,10 @@ export function registerSqlHandlers(ipcMain: IpcMain) {
               if (response.status() === 200) {
                 if (body.error) reject(new Error(`Query Error: ${body.error}`));
                 else resolve(body);
-              } else if (response.status() === 403 || response.status() === 500) {
+              } else if (
+                response.status() === 403 ||
+                response.status() === 500
+              ) {
                 // Return structured error instead of stringified JSON
                 reject({ type: "forbidden", body });
               } else {
@@ -559,6 +575,7 @@ export function registerSqlHandlers(ipcMain: IpcMain) {
           type: "success",
           title: sqlResult?.query?.db || "No Database",
           data: sqlResult?.data?.length ? sqlResult.data : [],
+          csv_link: sqlResult?.query?.id || "",
           columns: sqlResult?.columns?.length ? sqlResult.columns : [],
           sessionPath: storageStatePath,
         };
@@ -587,6 +604,93 @@ export function registerSqlHandlers(ipcMain: IpcMain) {
       }
     }
   );
+
+  ipcMain.handle("superset:downloadCsv", async (_event, csvId: string) => {
+    let browser: Browser | undefined;
+
+    const sessionDir = getSessionBaseDir();
+    fs.mkdirSync(sessionDir, { recursive: true });
+    const storageStatePath = path.join(sessionDir, "auth.json");
+    const metaPath = path.join(sessionDir, "auth_meta.json");
+    const loginUrl = "https://ar0ytyts.superdv.com/login";
+
+    try {
+      // --- Get Superset credentials ---
+      const creds = await getSupersetCredentials();
+      const activeCred = creds.find((c: any) => c.status === true);
+      if (!activeCred)
+        return { success: false, error: "No active Superset credential found" };
+
+      // --- Launch Playwright ---
+      browser = await chromium.launch({
+        headless: true,
+        executablePath: getChromiumExecutablePath(),
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage",
+          "--disable-gpu",
+        ],
+      });
+
+      // --- Reuse session if available ---
+      let lastUsername = "";
+      if (fs.existsSync(metaPath))
+        lastUsername = JSON.parse(fs.readFileSync(metaPath, "utf-8")).username;
+      const useExistingSession =
+        fs.existsSync(storageStatePath) && lastUsername === activeCred.username;
+      const context = useExistingSession
+        ? await browser.newContext({ storageState: storageStatePath })
+        : await browser.newContext();
+
+      const page = await context.newPage();
+      await page.goto(loginUrl);
+
+      // --- Login if no valid session ---
+      if (!useExistingSession) {
+        await page.fill("#username", activeCred.username);
+        await page.fill("#password", activeCred.password);
+        await Promise.all([
+          page.waitForURL(/.*\/superset\/(welcome|dashboard).*/, {
+            timeout: 15000,
+          }),
+          page.click('input[type="submit"][value="Sign In"]'),
+        ]);
+
+        // Save session
+        await context.storageState({ path: storageStatePath });
+        fs.writeFileSync(
+          metaPath,
+          JSON.stringify({ username: activeCred.username })
+        );
+      }
+
+      // --- Download CSV using authenticated session ---
+      const csvUrl = `https://ar0ytyts.superdv.com/superset/csv/${csvId}`;
+      const response = await context.request.get(csvUrl);
+      if (!response.ok())
+        throw new Error(`Failed to download CSV. Status: ${response.status()}`);
+      const buffer = await response.body();
+
+      // --- Ask user where to save ---
+      const { filePath, canceled } = await dialog.showSaveDialog({
+        title: "Save CSV",
+        defaultPath: `CRM-Report.csv`,
+        filters: [{ name: "CSV Files", extensions: ["csv"] }],
+      });
+
+      if (canceled || !filePath)
+        return { success: false, error: "Save canceled" };
+
+      fs.writeFileSync(filePath, buffer);
+
+      return { success: true, filePath };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    } finally {
+      if (browser) await browser.close();
+    }
+  });
 
   // New Version Release based on asana
   //   ipcMain.handle("sql:getFromAsana", async () => {

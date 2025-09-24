@@ -42,6 +42,7 @@ declare global {
         type?: string;
         title?: string;
         data?: any[];
+        csv_link?: string;
         columns?: any[];
         error?: string;
       }>;
@@ -80,6 +81,12 @@ declare global {
         projects?: { gid: string; name: string }[];
         error?: string;
       }>;
+
+      // 🔹 Superset CSV download
+      downloadCsv: (
+        csvId: string
+      ) => Promise<{ success: boolean; filePath?: string; error?: string }>;
+
     };
   }
 }

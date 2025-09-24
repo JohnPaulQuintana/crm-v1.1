@@ -1,10 +1,11 @@
 import React, { useState } from "react";
+import { Loader2 } from "lucide-react";
 import {
   AlertTriangle,
   ChevronDown,
   FileSpreadsheet,
   FileText,
-  Table 
+  Table,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { exportToCSV, exportToExcel } from "../../../utils/exportUtils";
@@ -20,6 +21,7 @@ interface ResultPanelProps {
   pageSize: number;
   onPageChange: (page: number) => void;
   showSupersetError: { title: string; text: string };
+  csvId: string;
 }
 
 export const ResultPanel: React.FC<ResultPanelProps> = ({
@@ -32,22 +34,42 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
   pageSize,
   onPageChange,
   showSupersetError,
+  csvId,
 }) => {
   const [open, setOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const paginatedData = tableData.slice(
     (currentPage - 1) * pageSize,
     currentPage * pageSize
   );
 
-  const handleExportCSV = () => {
-    const today = new Date().toISOString().split("T")[0];
-    exportToCSV(tableData, `CRM-Report_${today}.csv`);
+  const handleExportCSV = async () => {
+    try {
+      setExporting(true);
+      setOpen(false);
+      const csvFilePth = await exportToCSV(csvId);
+      if (csvFilePth) {
+        console.log("CSV downloaded to:", csvFilePth);
+      }
+    } catch (error) {
+      console.error("CSV export failed:", error);
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleExportExcel = async () => {
-    const today = new Date().toISOString().split("T")[0];
-    await exportToExcel(tableData, `CRM-Report_${today}.xlsx`);
+    try {
+      setExporting(true);
+      setOpen(false);
+      const today = new Date().toISOString().split("T")[0];
+      await exportToExcel(tableData, `CRM-Report_${today}.xlsx`);
+    } catch (error) {
+      console.error("Excel export failed:", error);
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -57,33 +79,25 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
         <div className="grid grid-cols-2 w-full items-center justify-between pe-2">
           <div className="flex items-start gap-3">
             <h1 className="text-lg font-semibold text-white uppercase flex items-center gap-2">
-              <Table  className="w-5 h-5" /> Total Rows:{" "}
-              <span
-                className="text-white"
-                // className={`${
-                //   tableData.length ? "text-green-600" : "text-red-300"
-                // }`}
-              >
+              <Table className="w-5 h-5" /> Total Rows:{" "}
+              <span className="text-white">
                 {tableData.length.toLocaleString()}
               </span>
             </h1>
           </div>
-          {/* navs */}
+          {/* Tabs */}
           <div className="flex items-center justify-end gap-2">
-            {/* SQL Preview tab - keep onClick commented */}
             <button
-              // onClick={() => setActiveTabRight('sql')}
               className={`hidden px-3 py-2 font-semibold rounded transition ${
                 activeTabRight === "sql"
                   ? "text-white bg-green-500"
                   : "text-white"
               }`}
-              disabled={isRequesting} // disabled while running
+              disabled={isRequesting}
             >
               SQL Preview
             </button>
 
-            {/* Script Description tab */}
             <button
               onClick={() => setActiveTabRight("description")}
               className={`px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition hover:bg-green-500 ${
@@ -96,7 +110,6 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
               Script Description
             </button>
 
-            {/* Result tab */}
             <button
               onClick={() => setActiveTabRight("result")}
               className={`px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition hover:bg-green-500 ${
@@ -111,28 +124,27 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
           </div>
         </div>
 
-        {/* <div className="hidden">
-          <button
-            onClick={onCredentials}
-            disabled={isRequesting} // ⬅ disable while running
-            className="px-3 py-2 bg-gray-200 font-semibold text-gray-700 rounded hover:bg-green-500 hover:text-white transition"
-          >
-            Credentials
-          </button>
-        </div> */}
         {/* Export Dropdown */}
         <div className="relative">
           <button
-            onClick={() => tableData.length && setOpen(!open)}
-            disabled={!tableData.length}
-            className={`px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium
-              ${
-                tableData.length
-                  ? "text-white"
-                  : "text-white cursor-not-allowed"
-              }`}
+            onClick={() => tableData.length && !exporting && setOpen(!open)}
+            disabled={!tableData.length || exporting}
+            className={`px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium ${
+              tableData.length
+                ? "text-white"
+                : "text-white cursor-not-allowed"
+            } ${exporting ? "opacity-70 cursor-wait" : ""}`}
           >
-            Download <ChevronDown size={16} />
+            {exporting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                {/* Processing... */}
+              </>
+            ) : (
+              <>
+                Download <ChevronDown size={16} />
+              </>
+            )}
           </button>
 
           <AnimatePresence>
@@ -144,20 +156,14 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
                 className="absolute right-0 mt-2 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-10"
               >
                 <button
-                  onClick={() => {
-                    setOpen(false);
-                    handleExportExcel();
-                  }}
+                  onClick={handleExportExcel}
                   className="flex items-center gap-2 w-full px-4 py-2 hover:bg-gray-100 transition"
                 >
                   <FileSpreadsheet size={16} className="text-green-600" />
                   Excel
                 </button>
                 <button
-                  onClick={() => {
-                    setOpen(false);
-                    handleExportCSV();
-                  }}
+                  onClick={handleExportCSV}
                   className="flex items-center gap-2 w-full px-4 py-2 hover:bg-gray-100 transition"
                 >
                   <FileText size={16} className="text-green-600" />
@@ -168,15 +174,9 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
           </AnimatePresence>
         </div>
       </div>
-      {/* <div
-        className={`p-2 ${
-          isRequesting ? "flex" : "hidden"
-        } items-center justify-end bg-gradient-to-r from-green-50 via-green-100 to-green-200`}
-      >
-        <StatusCard isRequesting={isRequesting} />
-      </div> */}
+
+      {/* Table */}
       <div className="flex flex-col gap-4">
-        {/* Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
             <thead>
@@ -184,7 +184,11 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
                 className={`${
                   showSupersetError?.title
                     ? "bg-red-500 text-white"
-                    : `text-green-900 items-center justify-end bg-gradient-to-r ${isRequesting ? "from-green-200 via-green-400 to-green-600" : "from-green-100 via-green-200 to-green-300"}`
+                    : `text-green-900 items-center justify-end bg-gradient-to-r ${
+                        isRequesting
+                          ? "from-green-200 via-green-400 to-green-600"
+                          : "from-green-100 via-green-200 to-green-300"
+                      }`
                 } rounded-t-lg`}
               >
                 {tableData.length > 0 ? (
@@ -198,7 +202,7 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
                   ))
                 ) : (
                   <th className="px-4 py-3 text-left font-semibold uppercase tracking-wide flex items-center justify-between">
-                    {showSupersetError?.title || "No Header Available"}! 
+                    {showSupersetError?.title || "No Header Available"}!
                     <StatusCard color="text-white" isRequesting={isRequesting} />
                   </th>
                 )}

@@ -16,7 +16,8 @@ interface AsanaRightPanelProps {
   onCredentials: () => void;
   showSupersetError: VpnInfo;
   scriptDescription: Description;
-  taskInfo: any
+  taskInfo: any;
+  csvId: string;
 }
 
 export const AsanaRightPanel: React.FC<AsanaRightPanelProps> = ({
@@ -31,7 +32,8 @@ export const AsanaRightPanel: React.FC<AsanaRightPanelProps> = ({
 //   onCredentials,
   showSupersetError,
   scriptDescription,
-  taskInfo
+  taskInfo,
+  csvId
 }) => {
   return (
     <div className="col-span-3 flex flex-col bg-white rounded-lg shadow-md font-mono text-sm">
@@ -47,6 +49,7 @@ export const AsanaRightPanel: React.FC<AsanaRightPanelProps> = ({
             pageSize={pageSize}
             onPageChange={onPageChange}
             showSupersetError={showSupersetError}
+            csvId={csvId}
           />
         )}
 

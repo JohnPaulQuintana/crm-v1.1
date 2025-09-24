@@ -54,7 +54,7 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
   });
   const [taskInfo, setTaskInfo] = useState<Assignee | null>(null);
   const [isFetchingAsana, setIsFetchingAsana] = useState(true);
-
+  const [csvId, setCsvId] = useState("")
   const pageSize = 20;
   const totalPages = Math.ceil(tableData.length / pageSize);
 
@@ -78,6 +78,7 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
           name: "",
           resource_type: "",
           script_author: "",
+          requestor: ""
         });
         setScriptDescription({ columns: [], description: "" });
         setIsFetchingAsana(false);
@@ -102,6 +103,7 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
               name: "",
               resource_type: "",
               script_author: "",
+              requestor: ""
             });
           }
         } else {
@@ -114,6 +116,7 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
             name: "",
             resource_type: "",
             script_author: "",
+            requestor:""
           });
         }
       } catch (err) {
@@ -127,6 +130,7 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
           name: "",
           resource_type: "",
           script_author: "",
+          requestor: ""
         });
       } finally {
         setIsFetchingAsana(false);
@@ -153,13 +157,20 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
         name: task.assignee?.name || "",
         resource_type: task.assignee?.resource_type || "",
         script_author: task.latest_sql?.created_by || "",
+        requestor:
+          task.identity.requestor?.trim() // check if not null/empty
+            ? task.identity.requestor
+            : task.created_by?.name // fallback: use created_at as string
+            ? task.created_by?.name
+            : "Asana" // final default
       });
+
 
       setScriptDescription({
         columns: Object.keys(
           task.latest_sql?.parsed_sql.editable_contents || {}
         ),
-        description: task.notes || "No description available",
+        description: (task.notes || "No description available").replace(/requestor:\s*.+(\r?\n)?/i, "")
       });
 
       setActiveTabRight("description");
@@ -221,10 +232,15 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
         selectedTask.latest_sql.gid,
         sqlContent
       );
-
+      console.log(res)
+      
       setIsRequesting(false);
       setActiveTabRight("result");
-      if (res?.success) setTableData(res.data || []);
+      if (res?.success) {
+        console.log(res.csv_link)
+        setCsvId(res.csv_link || "")
+        setTableData(res.data || [])
+      }
       else {
         const vpnInfo = handleExecutionError(res as ExecutionResult).vpnInfo;
         console.log(vpnInfo);
@@ -284,6 +300,7 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
                 name: "",
                 resource_type: "",
                 script_author: "",
+                requestor: ""
               });
             }
           }}
@@ -427,6 +444,7 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
         showSupersetError={showVpnInfo}
         scriptDescription={scriptDescription}
         taskInfo={taskInfo}
+        csvId={csvId}
       />
     </div>
   );
