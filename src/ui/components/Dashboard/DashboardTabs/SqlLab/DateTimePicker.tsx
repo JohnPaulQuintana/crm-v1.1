@@ -34,10 +34,10 @@ export const DateTimePicker: React.FC<Props> = ({ type, value, onChange }) => {
       <input
         ref={inputRef}
         type="text"
-        className="flatpickr-input border border-green-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-500 pr-10"
+        className="flatpickr-input border border-[#0c865e] rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-500 pr-10"
         placeholder={type === "datetime" ? "Select date & time" : "Select date"}
       />
-      <Calendar className="w-5 h-5 text-green-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+      <Calendar className="w-5 h-5 text-[#0c865e] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
     </div>
   );
 };

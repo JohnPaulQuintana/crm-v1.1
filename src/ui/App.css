@@ -10,13 +10,13 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #25b037; /* green thumb to match your loaders */
+  background: #0f9c6d; /* green thumb to match your loaders */
   border-radius: 6px;
   border: 2px solid #f0f0f0; /* adds padding effect */
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #00ff00; /* brighter green on hover */
+  background: #0c865e; /* brighter green on hover */
 }
 
 ::-webkit-scrollbar-corner {

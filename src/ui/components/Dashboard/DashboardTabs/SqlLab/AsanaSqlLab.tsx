@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import Select from "react-select";
 import { AsanaRightPanel } from "./AsanaRightPanel";
+import { Loader2 } from "lucide-react";
 import type {
   Section,
   Task,
@@ -54,7 +55,7 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
   });
   const [taskInfo, setTaskInfo] = useState<Assignee | null>(null);
   const [isFetchingAsana, setIsFetchingAsana] = useState(true);
-  const [csvId, setCsvId] = useState("")
+  const [csvId, setCsvId] = useState("");
   const pageSize = 20;
   const totalPages = Math.ceil(tableData.length / pageSize);
 
@@ -78,7 +79,7 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
           name: "",
           resource_type: "",
           script_author: "",
-          requestor: ""
+          requestor: "",
         });
         setScriptDescription({ columns: [], description: "" });
         setIsFetchingAsana(false);
@@ -103,7 +104,7 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
               name: "",
               resource_type: "",
               script_author: "",
-              requestor: ""
+              requestor: "",
             });
           }
         } else {
@@ -116,7 +117,7 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
             name: "",
             resource_type: "",
             script_author: "",
-            requestor:""
+            requestor: "",
           });
         }
       } catch (err) {
@@ -130,7 +131,7 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
           name: "",
           resource_type: "",
           script_author: "",
-          requestor: ""
+          requestor: "",
         });
       } finally {
         setIsFetchingAsana(false);
@@ -157,20 +158,22 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
         name: task.assignee?.name || "",
         resource_type: task.assignee?.resource_type || "",
         script_author: task.latest_sql?.created_by || "",
-        requestor:
-          task.identity.requestor?.trim() // check if not null/empty
-            ? task.identity.requestor
-            : task.created_by?.name // fallback: use created_at as string
-            ? task.created_by?.name
-            : "Asana" // final default
+        requestor: task.identity.requestor?.trim() // check if not null/empty
+          ? task.identity.requestor
+          : task.created_by?.name // fallback: use created_at as string
+          ? task.created_by?.name
+          : "Asana", // final default
       });
-
 
       setScriptDescription({
         columns: Object.keys(
           task.latest_sql?.parsed_sql.editable_contents || {}
         ),
-        description: (task.notes || "No description available").replace(/requestor:\s*.+(\r?\n)?/i, "")
+        description: task.notes 
+        // description: (task.notes || "No description available").replace(
+        //   /requestor:\s*.+(\r?\n)?/i,
+        //   ""
+        // ),
       });
 
       setActiveTabRight("description");
@@ -224,24 +227,23 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
     setTableData([]);
     setCurrentPage(1);
     setShowVpnInfo({ title: "", text: "" });
-    
-    console.log(sqlContent)
+
+    console.log(sqlContent);
     try {
       const res = await window.electron?.saveFileContent(
         selectedTask.identity.brand || "",
         selectedTask.latest_sql.gid,
         sqlContent
       );
-      console.log(res)
-      
+      console.log(res);
+
       setIsRequesting(false);
       setActiveTabRight("result");
       if (res?.success) {
-        console.log(res.csv_link)
-        setCsvId(res.csv_link || "")
-        setTableData(res.data || [])
-      }
-      else {
+        console.log(res.csv_link);
+        setCsvId(res.csv_link || "");
+        setTableData(res.data || []);
+      } else {
         const vpnInfo = handleExecutionError(res as ExecutionResult).vpnInfo;
         console.log(vpnInfo);
         setShowVpnInfo({
@@ -272,7 +274,7 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
   return (
     <div className="h-[calc(100vh-4rem)] grid grid-cols-4 gap-1 bg-gray-50 p-2">
       <div className="col-span-1 border-r pr-2">
-        <label className="block font-medium mb-2 text-green-700">
+        <label className="block font-medium mb-2 text-[#0c865e]">
           Asana Tasks
         </label>
 
@@ -300,7 +302,7 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
                 name: "",
                 resource_type: "",
                 script_author: "",
-                requestor: ""
+                requestor: "",
               });
             }
           }}
@@ -309,6 +311,8 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
           isSearchable
           isDisabled={isFetchingAsana}
           placeholder="Select a task"
+          menuPortalTarget={document.body} // ✅ render dropdown in body
+          menuPosition="fixed" // ✅ position it correctly
           styles={{
             control: (base) => ({
               ...base,
@@ -325,15 +329,17 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
                 : "white",
               color: state.isSelected ? "white" : "#065F46",
             }),
+            menuPortal: (base) => ({ ...base, zIndex: 9999 }), // make sure it's above everything
             placeholder: (base) => ({ ...base, color: "#065F46" }),
           }}
         />
 
         {/* Input Fields */}
+        {/* Input Fields */}
         <div className="mt-4 overflow-y-auto max-h-[calc(100vh-4rem-150px)]">
           {selectedTask?.inputs?.map((input) => (
             <div key={input.name} className="mb-4">
-              <label className="block text-sm font-semibold text-green-700 mb-1">
+              <label className="block text-sm font-semibold text-[#0c865e] mb-1">
                 {input.name
                   .replace(/_/g, " ")
                   .replace(/\b\w/g, (c) => c.toUpperCase())}
@@ -359,10 +365,13 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
                     label: opt,
                   }))}
                   isClearable
+                  menuPortalTarget={document.body} // render dropdown in body
+                  menuPosition="fixed" // use fixed positioning
+                  menuShouldBlockScroll={true} // optional: block background scroll
                   styles={{
                     control: (base) => ({
                       ...base,
-                      borderColor: "#34D399",
+                      borderColor: "#0c865e",
                       boxShadow: "none",
                       "&:hover": { borderColor: "#10B981" },
                     }),
@@ -375,6 +384,7 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
                         : "white",
                       color: state.isSelected ? "white" : "#065F46",
                     }),
+                    menuPortal: (base) => ({ ...base, zIndex: 9999 }), // always on top
                   }}
                 />
               ) : input.type === "date" || input.type === "datetime" ? (
@@ -394,13 +404,11 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
                       e.target.value,
                       "text" as any
                     );
-
-                    // Auto-resize height
                     const target = e.target;
-                    target.style.height = "auto"; // reset
-                    target.style.height = target.scrollHeight + "px"; // adjust
+                    target.style.height = "auto";
+                    target.style.height = target.scrollHeight + "px";
                   }}
-                  className="border border-green-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-500 resize-none overflow-hidden"
+                  className="border border-[#10B981] rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-500 resize-none overflow-hidden"
                 />
               )}
             </div>
@@ -417,16 +425,24 @@ export const AsanaSqlLab: React.FC<AsanaSqlLabProps> = ({
                 (val) => !val || val.trim() === ""
               )
             }
-            className={`px-4 py-2 rounded-lg w-full shadow text-white ${
+            className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg w-full shadow text-white ${
               isRequesting ||
               Object.values(asanaInputValues).some(
                 (val) => !val || val.trim() === ""
               )
-                ? "bg-green-300 cursor-not-allowed"
-                : "bg-green-500 hover:bg-green-600"
+                ? "bg-[#0c865e] cursor-not-allowed"
+                : "bg-[#0c865e] hover:bg-[#085f42]"
             }`}
           >
-            Run Task
+            {isRequesting ? (
+              <>
+              Run Task
+                <Loader2 className="w-4 h-4 animate-spin" />
+                
+              </>
+            ) : (
+              "Run Task"
+            )}
           </button>
         )}
       </div>

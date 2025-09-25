@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import axios from "axios";
-import { IpcMain, dialog } from "electron";
+import { IpcMain, dialog, shell, app } from "electron";
 import { chromium, Page, Browser, Locator } from "playwright-core";
 import { getWritableDir } from "./resources.js";
 import { isDev } from "./util.js";
@@ -672,17 +672,13 @@ export function registerSqlHandlers(ipcMain: IpcMain) {
         throw new Error(`Failed to download CSV. Status: ${response.status()}`);
       const buffer = await response.body();
 
-      // --- Ask user where to save ---
-      const { filePath, canceled } = await dialog.showSaveDialog({
-        title: "Save CSV",
-        defaultPath: `CRM-Report.csv`,
-        filters: [{ name: "CSV Files", extensions: ["csv"] }],
-      });
-
-      if (canceled || !filePath)
-        return { success: false, error: "Save canceled" };
-
+      // --- Save to user's real Downloads folder ---
+      const downloadsDir = app.getPath("downloads"); // ✅ OS default Downloads folder
+      const filePath = path.join(downloadsDir, `CRM-Report-${Date.now()}.csv`);
       fs.writeFileSync(filePath, buffer);
+
+      // --- Open file with default app (Excel, Numbers, etc.) ---
+      await shell.openPath(filePath);
 
       return { success: true, filePath };
     } catch (err: any) {
